@@ -34,6 +34,7 @@ impl Default for CudaCtx {
     }
 }
 
+#[derive(Debug)]
 pub struct Vector<T>
 where
     T: DeviceCopy,
@@ -103,16 +104,38 @@ where
     }
 }
 
+#[macro_export]
+macro_rules! vector {
+    [ $($elem:expr),* $(,)? ] => {{
+        let tmp = vec![$($elem),*];
+        Vector::from(tmp)
+    }};
+
+    ($elem:expr ; $count:expr) => {{
+        let tmp = vec![$elem; $count];
+        Vector::from(tmp)
+    }};
+}
+
 #[cfg(test)]
 mod tests {
     use crate::Vector;
 
     #[test]
     fn vec_add() {
-        let v1: Vector<f32> = Vector::from(vec![1.0, 2.0, 3.0]);
-        let v2 = Vector::from(vec![2.0, 4.0, 6.0]);
+        let v1 = vector![1.0f32, 2.0, 3.0];
+        let v2 = vector![2.0, 4.0, 6.0];
 
         let v3 = v1 + v2;
-        assert_eq!(v3._inner, vec![3.0, 6.0, 9.0]);
+        assert_eq!(v3, vector![3.0, 6.0, 9.0]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn vec_add_illegal() {
+        let v1 = vector![1.0, 2.0, 3.0];
+        let v2 = vector![2.0, 4.0];
+
+        let v3 = v1 + v2;
     }
 }
