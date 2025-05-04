@@ -1,13 +1,13 @@
 use bytemuck::Zeroable;
+use cust::context::Context;
+use cust::launch;
 use cust::memory::*;
 use cust::module::Module;
-use cust::launch;
 use cust::stream::*;
+use lazy_static::lazy_static;
 use std::ffi::CString;
 use std::ops::Add;
-use lazy_static::lazy_static;
 use std::sync::Mutex;
-use cust::context::Context;
 
 struct CudaCtx {
     stream: Stream,
@@ -35,11 +35,11 @@ impl Default for CudaCtx {
 }
 
 pub struct Vector<T>
-where 
-    T: DeviceCopy
+where
+    T: DeviceCopy,
 {
     _device_ptr: Option<DeviceBuffer<T>>,
-    _inner: Vec<T>
+    _inner: Vec<T>,
 }
 
 impl<T: DeviceCopy> From<Vec<T>> for Vector<T> {
@@ -64,7 +64,8 @@ impl<T: DeviceCopy> Drop for Vector<T> {
 }
 
 impl<T> Add for Vector<T>
-where T: Default + DeviceCopy + Zeroable
+where
+    T: DeviceCopy + Default + Zeroable,
 {
     type Output = Vector<T>;
 
@@ -98,7 +99,7 @@ where T: Default + DeviceCopy + Zeroable
         return Vector {
             _device_ptr: None,
             _inner: Vec::from(host_out),
-        }
+        };
     }
 }
 
@@ -112,7 +113,6 @@ mod tests {
         let v2 = Vector::from(vec![2.0, 4.0, 6.0]);
 
         let v3 = v1 + v2;
-        assert_eq!(v3._inner, vec![3.0, 6.0, 9.0]); 
+        assert_eq!(v3._inner, vec![3.0, 6.0, 9.0]);
     }
-
 }
