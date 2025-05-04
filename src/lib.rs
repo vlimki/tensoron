@@ -65,7 +65,7 @@ impl<T: DeviceCopy> Drop for Vector<T> {
 
 impl<T> Add for Vector<T>
 where
-    T: DeviceCopy + Default + Zeroable,
+    T: DeviceCopy + Zeroable,
 {
     type Output = Vector<T>;
 
@@ -91,7 +91,7 @@ where
             result.unwrap()
         }
 
-        let mut host_out = vec![T::default(); self._inner.len()];
+        let mut host_out = vec![T::zeroed(); self._inner.len()];
         c_out.copy_to(&mut host_out[..]).unwrap();
 
         ctx.stream.synchronize().unwrap();
