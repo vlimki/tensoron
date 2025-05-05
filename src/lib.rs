@@ -7,7 +7,11 @@ use cust::stream::*;
 use lazy_static::lazy_static;
 use std::ffi::CString;
 use std::ops::Add;
+use std::ops::Mul;
 use std::sync::Mutex;
+
+pub mod tensor;
+pub use tensor::Tensor;
 
 struct CudaCtx {
     stream: Stream,
@@ -34,21 +38,16 @@ impl Default for CudaCtx {
     }
 }
 
-#[derive(Debug)]
-pub struct Vector<T>
-where
-    T: DeviceCopy,
-{
-    _device_ptr: Option<DeviceBuffer<T>>,
-    _inner: Vec<T>,
-}
+pub type Matrix<T> = Tensor<T, 2>;
+
+/// To separate column vectors and row vectors, we have the dimensions as either [1, N] or [N, 1].
+pub type Vector<T> = Tensor<T, 2>;
+
+pub type Scalar<T> = Tensor<T, 0>;
 
 impl<T: DeviceCopy> From<Vec<T>> for Vector<T> {
     fn from(v: Vec<T>) -> Self {
-        Self {
-            _inner: v,
-            _device_ptr: None,
-        }
+        Tensor::from(([v.len(), 1], v))
     }
 }
 
@@ -58,9 +57,14 @@ impl<T: DeviceCopy + PartialEq> PartialEq for Vector<T> {
     }
 }
 
-impl<T: DeviceCopy> Drop for Vector<T> {
-    fn drop(&mut self) {
-        let _ = self._device_ptr.take();
+impl<T> Mul<Scalar<T>> for Vector<T> 
+where 
+    T: DeviceCopy + Mul<Output = T>
+{
+    type Output = Self;
+    fn mul(mut self, rhs: Scalar<T>) -> Self::Output {
+        self._inner = self._inner.iter().map(|x| *x * rhs._inner[0]).collect();
+        self
     }
 }
 
@@ -71,7 +75,8 @@ where
     type Output = Vector<T>;
 
     fn add(mut self, mut other: Self) -> Self {
-        assert_eq!(self._inner.len(), other._inner.len());
+        assert_eq!(self._shape, other._shape);
+
         let _ctx = cust::quick_init().unwrap();
 
         self._device_ptr = Some(DeviceBuffer::from_slice(&self._inner).unwrap());
@@ -80,7 +85,7 @@ where
         let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(self._inner.len()).unwrap();
 
         let ctx = CUDA_CTX.lock().unwrap();
-        let (module, stream) = (&ctx.module, &ctx.stream);
+        let CudaCtx { ref module, ref stream, .. } = *ctx;
 
         unsafe {
             let result = launch!(module.vec_add<<<1, 3, 0, stream>>>(
@@ -97,23 +102,31 @@ where
 
         ctx.stream.synchronize().unwrap();
 
-        return Vector {
+        return Self {
             _device_ptr: None,
+            _shape: self._shape,
             _inner: Vec::from(host_out),
         };
     }
 }
 
+impl<T: DeviceCopy> Vector<T> {
+    pub fn with_shape(shape: Vec<usize>, data: Vec<T>) -> Self {
+        assert_eq!(shape.len(), 2, "Vectors should be constructed with two dimensions.");
+        Self {
+            _device_ptr: None,
+            _shape: [shape[0], shape[1]],
+            _inner: data,
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! vector {
-    [ $($elem:expr),* $(,)? ] => {{
+    ([$($shape:expr),*] [ $($elem:expr),* $(,)? ]) => {{
         let tmp = vec![$($elem),*];
-        Vector::from(tmp)
-    }};
-
-    ($elem:expr ; $count:expr) => {{
-        let tmp = vec![$elem; $count];
-        Vector::from(tmp)
+        let shapes = vec![$($shape),*];
+        Vector::with_shape(shapes, tmp)
     }};
 }
 
@@ -123,19 +136,19 @@ mod tests {
 
     #[test]
     fn vec_add() {
-        let v1 = vector![1.0f32, 2.0, 3.0];
-        let v2 = vector![2.0, 4.0, 6.0];
+        let v1 = vector!([3, 1][1.0f32, 2.0, 3.0]);
+        let v2 = vector!([3, 1][2.0, 4.0, 6.0]);
 
         let v3 = v1 + v2;
-        assert_eq!(v3, vector![3.0, 6.0, 9.0]);
+        assert_eq!(v3, vector!([3,1][3.0, 6.0, 9.0]));
     }
 
     #[test]
     #[should_panic]
     fn vec_add_illegal() {
-        let v1 = vector![1.0, 2.0, 3.0];
-        let v2 = vector![2.0, 4.0];
+        let v1 = vector!([3, 1][1.0, 2.0, 3.0]);
+        let v2 = vector!([2, 1][2.0, 4.0]);
 
-        let v3 = v1 + v2;
+        let _ = v1 + v2;
     }
 }
