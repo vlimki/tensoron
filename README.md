@@ -1,6 +1,5 @@
 # tensoron - CUDA-Accelerated Linear Algebra in Rust
 
-
 ### Todo
 - [ ] (!) Actually learn CUDA and write good kernels
 - [ ] Compile CUDA at build-time (build.rs)
