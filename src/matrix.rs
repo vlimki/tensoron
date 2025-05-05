@@ -13,7 +13,7 @@ struct Dimensions {
     m1_rows: u32,
     m1_cols: u32,
     m2_rows: u32,
-    m2_cols: u32
+    m2_cols: u32,
 }
 
 // Do this soon

@@ -1,5 +1,5 @@
-use crate::Tensor;
 use crate::tensor;
+use crate::Tensor;
 use crate::{calc_grid_size, CudaCtx, CUDA_CTX};
 use bytemuck::Zeroable;
 use cust::launch;
@@ -15,14 +15,18 @@ impl<T: DeviceCopy> From<Vec<T>> for Vector<T> {
 }
 
 pub(crate) fn transpose<T>(mut v1: Vector<T>) -> Vector<T>
-where T: DeviceCopy {
+where
+    T: DeviceCopy,
+{
     let s = v1.shape();
     v1._shape = [s[1], s[0]];
     v1
 }
 
 pub(crate) fn add<T>(mut v1: Vector<T>, mut v2: Vector<T>) -> Vector<T>
-where T: DeviceCopy + Zeroable {
+where
+    T: DeviceCopy + Zeroable,
+{
     assert_eq!(v1.shape(), v2.shape());
 
     let ctx = CUDA_CTX.lock().unwrap();
@@ -60,7 +64,9 @@ where T: DeviceCopy + Zeroable {
 }
 
 pub(crate) fn mul<T>(mut v1: Vector<T>, mut v2: Vector<T>) -> Vector<T>
-where T: DeviceCopy + Zeroable {
+where
+    T: DeviceCopy + Zeroable,
+{
     assert_eq!(v1.shape()[0], v2.shape()[1]);
     assert_eq!(v1.shape()[1], v2.shape()[0]);
 

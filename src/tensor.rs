@@ -1,5 +1,5 @@
-use std::ops::{Add, Mul};
 use crate::vector;
+use std::ops::{Add, Mul};
 
 use bytemuck::Zeroable;
 use cust::memory::*;
@@ -43,14 +43,14 @@ macro_rules! tensor {
 
 impl<T, const R: usize> Clone for Tensor<T, R>
 where
-    T: DeviceCopy + Clone
+    T: DeviceCopy + Clone,
 {
     /// Safe because it discards the device pointer.
     fn clone(&self) -> Self {
         Self {
             _device_ptr: None,
             _inner: self._inner.clone(),
-            _shape: self._shape.clone()
+            _shape: self._shape.clone(),
         }
     }
 }
@@ -66,7 +66,7 @@ where
 
 impl<T, const R: usize> Tensor<T, R>
 where
-    T: DeviceCopy + Mul<Output = T>
+    T: DeviceCopy + Mul<Output = T>,
 {
     pub fn scale(&self, value: T) -> Self {
         self.map(|x| *x * value)
@@ -128,38 +128,44 @@ where
  * RANK-2 TENSOR FUNCTIONS
  */
 impl<T> Tensor<T, 2>
-where T: DeviceCopy {
+where
+    T: DeviceCopy,
+{
     pub fn transpose(self) -> Self {
         let s = self.shape();
         match s {
             [_, 1] | [1, _] => vector::transpose(self),
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 }
 
 impl<T> Mul for Tensor<T, 2>
-where T: DeviceCopy + Zeroable {
+where
+    T: DeviceCopy + Zeroable,
+{
     type Output = Self;
     fn mul(self, rhs: Self) -> Self::Output {
         let s = self.shape();
         match s {
             [_, 1] | [1, _] => vector::mul(self, rhs),
             // Matmul
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 }
 
 impl<T> Add for Tensor<T, 2>
-where T: DeviceCopy + Zeroable {
+where
+    T: DeviceCopy + Zeroable,
+{
     type Output = Self;
     fn add(self, rhs: Self) -> Self::Output {
         let s = self.shape();
         match s {
             [_, 1] | [1, _] => vector::add(self, rhs),
             // Matrix addition
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 }

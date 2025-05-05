@@ -6,12 +6,12 @@ use lazy_static::lazy_static;
 use std::ffi::CString;
 use std::sync::Mutex;
 
+pub mod matrix;
 mod tensor;
 pub mod vector;
-pub mod matrix;
+pub use matrix::Matrix;
 pub use tensor::Tensor;
 pub use vector::Vector;
-pub use matrix::Matrix;
 
 struct CudaCtx {
     stream: Stream,
@@ -41,7 +41,8 @@ impl Default for CudaCtx {
 //pub type Matrix<T> = Tensor<T, 2>;
 
 pub(crate) fn calc_grid_size<T, const R: usize>(t: &Tensor<T, R>) -> (u32, u32)
-where T: DeviceCopy
+where
+    T: DeviceCopy,
 {
     let block_size = 256; // or 128, 512 based on occupancy tuning
     let grid_size = (t.inner().len() as u32 + block_size - 1) / block_size;
@@ -49,24 +50,20 @@ where T: DeviceCopy
     (block_size, grid_size)
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::{Tensor, tensor, Vector};
+    use crate::{tensor, Tensor, Vector};
     use rand::distr::Uniform;
     use rand::rngs::StdRng;
-    use rand::SeedableRng;
     use rand::Rng;
-
+    use rand::SeedableRng;
 
     fn generate_data() -> Vec<f32> {
         let size: usize = 10_000_000;
         let mut rng = StdRng::from_os_rng();
         let uniform = Uniform::new(-1.0f32, 1.0).unwrap();
 
-        (0..size)
-            .map(|_| rng.sample(&uniform))
-            .collect()
+        (0..size).map(|_| rng.sample(&uniform)).collect()
     }
 
     #[test]
