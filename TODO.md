@@ -1,3 +1,3 @@
 - [ ] Compile CUDA at build-time (build.rs)
-- [ ] Basic vector operations: multiply by scalar, dot product, etc.
 - [ ] Matrix type and its operations
+- [ ] Basic vector operations: multiply by scalar, dot product, etc.

@@ -3,13 +3,6 @@ use std::{ops::Mul, process::Output};
 use cust::memory::*;
 //use std::ops::Mul;
 
-// Work on this bad naming
-pub enum SetDevicePointer<T: DeviceCopy> {
-    None,
-    New,
-    Devbuf(DeviceBuffer<T>),
-}
-
 /*pub type Scalar<T> = Tensor<T, 0>;
 
 impl<T: DeviceCopy> From<T> for Scalar<T> {
@@ -32,6 +25,20 @@ where
     _device_ptr: Option<DeviceBuffer<T>>,
     _inner: Vec<T>,
     _shape: [usize; R],
+}
+
+impl<T, const R: usize> Clone for Tensor<T, R>
+where
+    T: DeviceCopy + Clone
+{
+    /// Safe because it discards the device pointer.
+    fn clone(&self) -> Self {
+        Self {
+            _device_ptr: None,
+            _inner: self._inner.clone(),
+            _shape: self._shape.clone()
+        }
+    }
 }
 
 impl<T, const R: usize> Drop for Tensor<T, R>
@@ -69,7 +76,9 @@ where
     }
 
     pub(crate) fn to_device(&mut self) {
-        self._device_ptr = Some(DeviceBuffer::from_slice(&self._inner).unwrap());
+        if let None = self._device_ptr {
+            self._device_ptr = Some(DeviceBuffer::from_slice(&self._inner).unwrap());
+        }
     }
 
     pub(crate) fn into_device(mut self) {

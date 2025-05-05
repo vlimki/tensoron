@@ -3,7 +3,7 @@ use crate::{CudaCtx, CUDA_CTX};
 use bytemuck::Zeroable;
 use cust::launch;
 use cust::memory::*;
-use std::ops::Add;
+use std::ops::{Add, Mul};
 
 /// To separate column vectors and row vectors, we have the dimensions as either [1, N] or [N, 1].
 pub type Vector<T> = Tensor<T, 2>;
@@ -33,13 +33,13 @@ where
 
         let ctx = CUDA_CTX.lock().unwrap();
         let CudaCtx {
-            ref module,
+            ref vector,
             ref stream,
             ..
         } = *ctx;
 
         unsafe {
-            let result = launch!(module.vec_add<<<1, 3, 0, stream>>>(
+            let result = launch!(vector.add<<<1, 3, 0, stream>>>(
                 self.device_ptr().as_ref().unwrap().as_device_ptr(),
                 other.device_ptr().as_ref().unwrap().as_device_ptr(),
                 c_out.as_device_ptr(),
@@ -54,5 +54,48 @@ where
         ctx.stream.synchronize().unwrap();
 
         return Tensor::from((self.shape(), Vec::from(host_out)));
+    }
+}
+
+impl<T> Mul for Vector<T>
+where
+    T: DeviceCopy + Zeroable,
+{
+    type Output = T;
+
+    fn mul(mut self, mut other: Self) -> T {
+        assert_eq!(self.shape(), other.shape());
+
+        let _ctx = cust::quick_init().unwrap();
+
+        self.to_device();
+        other.to_device();
+
+        let len = self.shape()[0].max(self.shape()[1]);
+        let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(1).unwrap();
+
+        let ctx = CUDA_CTX.lock().unwrap();
+        let CudaCtx {
+            ref vector,
+            ref stream,
+            ..
+        } = *ctx;
+
+        unsafe {
+            let result = launch!(vector.dot_product<<<1, 3, 0, stream>>>(
+                self.device_ptr().as_ref().unwrap().as_device_ptr(),
+                other.device_ptr().as_ref().unwrap().as_device_ptr(),
+                c_out.as_device_ptr(),
+                len as std::os::raw::c_int,
+            ));
+            result.unwrap()
+        }
+
+        let mut host_out = vec![T::zeroed(); 1];
+        c_out.copy_to(&mut host_out[..]).unwrap();
+
+        ctx.stream.synchronize().unwrap();
+
+        return host_out[0];
     }
 }

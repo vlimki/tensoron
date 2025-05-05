@@ -12,7 +12,7 @@ pub use vector::Vector;
 
 struct CudaCtx {
     stream: Stream,
-    module: Module,
+    vector: Module,
     _ctx: Context,
 }
 
@@ -23,12 +23,12 @@ lazy_static! {
 impl Default for CudaCtx {
     fn default() -> Self {
         let context = cust::quick_init().unwrap();
-        let ptx = CString::new(include_str!("../kernels/vec_add.ptx")).unwrap();
+        let ptx = CString::new(include_str!("../kernels/vector.ptx")).unwrap();
         let module = Module::from_ptx_cstr(&ptx, &[]).unwrap();
         let stream = Stream::new(StreamFlags::NON_BLOCKING, None).unwrap();
 
         Self {
-            module,
+            vector: module,
             stream,
             _ctx: context,
         }
@@ -51,14 +51,17 @@ mod tests {
     use crate::Tensor;
 
     #[test]
-    fn vec_add() {
+    fn vectors() {
         let v1 = tensor!([3, 1][1.0f32, 2.0, 3.0]);
         let v2 = tensor!([3, 1][2.0, 4.0, 6.0]);
 
-        let v3 = v1 + v2;
-        assert_eq!(v3, tensor!([3,1][3.0, 6.0, 9.0]));
+        let v3 = v1.clone() + v2.clone();
 
+        let v4 = v1 * v2;
+
+        assert_eq!(v3, tensor!([3,1][3.0, 6.0, 9.0]));
         assert_eq!(v3.scale(10.0), tensor!([3,1][30.0, 60.0, 90.0]));
+        assert_eq!(v4, 28.0);
     }
 
     #[test]
