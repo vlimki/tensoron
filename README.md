@@ -2,6 +2,9 @@
 
 ### Todo
 - [ ] (!) Actually learn CUDA and write good kernels
+- [ ] Make the library GPU-local
+    - [ ] Treat device pointers as authoritative data; don't discard them
+    - [ ] Do every operation on the GPU
 - [ ] Compile CUDA at build-time (build.rs)
     - [ ] Support other types besides f32 by replacing float* with whatever type is needed in the CUDA code (build.rs)
 - [ ] `src/matrix.rs` comment, line 48
