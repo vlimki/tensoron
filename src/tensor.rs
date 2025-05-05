@@ -1,3 +1,5 @@
+use std::{ops::Mul, process::Output};
+
 use cust::memory::*;
 //use std::ops::Mul;
 
@@ -38,6 +40,15 @@ where
 {
     fn drop(&mut self) {
         let _ = self._device_ptr.take();
+    }
+}
+
+impl<T, const R: usize> Tensor<T, R>
+where
+    T: DeviceCopy + Mul<Output = T>
+{
+    pub fn scale(&self, value: T) -> Self {
+        self.map(|x| *x * value)
     }
 }
 

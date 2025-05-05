@@ -58,8 +58,7 @@ mod tests {
         let v3 = v1 + v2;
         assert_eq!(v3, tensor!([3,1][3.0, 6.0, 9.0]));
 
-        //let s1: Scalar<f32> = 10.0.into();
-        //assert_eq!(s1 * v3, tensor!([3,1][30.0, 60.0, 90.0]));
+        assert_eq!(v3.scale(10.0), tensor!([3,1][30.0, 60.0, 90.0]));
     }
 
     #[test]
