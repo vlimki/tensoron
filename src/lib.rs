@@ -16,6 +16,7 @@ pub use vector::Vector;
 struct CudaCtx {
     stream: Stream,
     vector: Module,
+    matrix: Module,
     _ctx: Context,
 }
 
@@ -26,12 +27,17 @@ lazy_static! {
 impl Default for CudaCtx {
     fn default() -> Self {
         let context = cust::quick_init().unwrap();
-        let ptx = CString::new(include_str!("../kernels/vector.ptx")).unwrap();
-        let module = Module::from_ptx_cstr(&ptx, &[]).unwrap();
+
+        let ptx_vector = CString::new(include_str!("../kernels/vector.ptx")).unwrap();
+        let module_vector = Module::from_ptx_cstr(&ptx_vector, &[]).unwrap();
+        let ptx_matrix = CString::new(include_str!("../kernels/matrix.ptx")).unwrap();
+        let module_matrix = Module::from_ptx_cstr(&ptx_matrix, &[]).unwrap();
+
         let stream = Stream::new(StreamFlags::NON_BLOCKING, None).unwrap();
 
         Self {
-            vector: module,
+            vector: module_vector,
+            matrix: module_matrix,
             stream,
             _ctx: context,
         }
@@ -84,6 +90,15 @@ mod tests {
         let v6 = Vector::from(generate_data());
         let _ = v5 * v6.transpose();
     }
+
+    #[test]
+    fn matrices() {
+        let m1 = tensor!([2, 2][1.0f32, 2.0, 3.0, 4.0]);
+        let m2 = tensor!([2, 2][2.0, 3.0, 4.0, 5.0]);
+
+        let m3 = m1 * m2;
+        println!("{:#?}", m3)
+    } 
 
     #[test]
     #[should_panic]

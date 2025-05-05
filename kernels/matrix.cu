@@ -10,7 +10,7 @@ struct dimensions_t {
 };
 
 // Don't laugh at this kernel lol
-__global__ void matmul_kernel(float* m1, float* m2, float* result, struct dimensions_t dims) {
+extern "C" __global__ void matmul_kernel(float* m1, float* m2, float* result, struct dimensions_t dims) {
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 
