@@ -6,10 +6,12 @@ use lazy_static::lazy_static;
 use std::ffi::CString;
 use std::sync::Mutex;
 
-pub mod tensor;
+mod tensor;
 pub mod vector;
+pub mod matrix;
 pub use tensor::Tensor;
 pub use vector::Vector;
+pub use matrix::Matrix;
 
 struct CudaCtx {
     stream: Stream,
@@ -47,19 +49,10 @@ where T: DeviceCopy
     (block_size, grid_size)
 }
 
-#[macro_export]
-macro_rules! tensor {
-    ([$($shape:expr),*] [ $($elem:expr),* $(,)? ]) => {{
-        let data = vec![$($elem),*];
-        const SHAPE: &[usize] = &[$($shape),*];
-        Tensor::<_, { SHAPE.len() }>::from(([ $($shape),* ], data))
-    }};
-}
 
 #[cfg(test)]
 mod tests {
-    use crate::Tensor;
-    use crate::Vector;
+    use crate::{Tensor, tensor, Vector};
     use rand::distr::Uniform;
     use rand::rngs::StdRng;
     use rand::SeedableRng;
@@ -83,16 +76,16 @@ mod tests {
 
         let v3 = v1.clone() + v2.clone();
 
-        let v4 = v1 * v2;
+        let v4 = v1 * v2.transpose();
 
         assert_eq!(v3, tensor!([3,1][3.0, 6.0, 9.0]));
         assert_eq!(v3.scale(10.0), tensor!([3,1][30.0, 60.0, 90.0]));
-        assert_eq!(v4, 28.0);
+        assert_eq!(v4, tensor!([1, 1][28.0]));
 
         // Bigger vectors
         let v5 = Vector::from(generate_data());
         let v6 = Vector::from(generate_data());
-        let _ = v5 * v6;
+        let _ = v5 * v6.transpose();
     }
 
     #[test]

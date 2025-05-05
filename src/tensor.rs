@@ -1,5 +1,7 @@
-use std::ops::Mul;
+use std::ops::{Add, Mul};
+use crate::vector;
 
+use bytemuck::Zeroable;
 use cust::memory::*;
 //use std::ops::Mul;
 
@@ -22,9 +24,21 @@ pub struct Tensor<T, const R: usize>
 where
     T: DeviceCopy,
 {
-    _device_ptr: Option<DeviceBuffer<T>>,
-    _inner: Vec<T>,
-    _shape: [usize; R],
+    pub(crate) _device_ptr: Option<DeviceBuffer<T>>,
+    pub(crate) _inner: Vec<T>,
+    pub(crate) _shape: [usize; R],
+}
+
+/*
+ * RANK-R TENSOR FUNCTIONS
+ */
+#[macro_export]
+macro_rules! tensor {
+    ([$($shape:expr),*] [ $($elem:expr),* $(,)? ]) => {{
+        let data = vec![$($elem),*];
+        const SHAPE: &[usize] = &[$($shape),*];
+        Tensor::<_, { SHAPE.len() }>::from(([ $($shape),* ], data))
+    }};
 }
 
 impl<T, const R: usize> Clone for Tensor<T, R>
@@ -107,5 +121,45 @@ where
 {
     fn eq(&self, other: &Self) -> bool {
         self._inner == other._inner && self._shape == other._shape
+    }
+}
+
+/*
+ * RANK-2 TENSOR FUNCTIONS
+ */
+impl<T> Tensor<T, 2>
+where T: DeviceCopy {
+    pub fn transpose(self) -> Self {
+        let s = self.shape();
+        match s {
+            [_, 1] | [1, _] => vector::transpose(self),
+            _ => unimplemented!()
+        }
+    }
+}
+
+impl<T> Mul for Tensor<T, 2>
+where T: DeviceCopy + Zeroable {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self::Output {
+        let s = self.shape();
+        match s {
+            [_, 1] | [1, _] => vector::mul(self, rhs),
+            // Matmul
+            _ => unimplemented!()
+        }
+    }
+}
+
+impl<T> Add for Tensor<T, 2>
+where T: DeviceCopy + Zeroable {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        let s = self.shape();
+        match s {
+            [_, 1] | [1, _] => vector::add(self, rhs),
+            // Matrix addition
+            _ => unimplemented!()
+        }
     }
 }
