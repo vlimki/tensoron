@@ -1,4 +1,4 @@
-use std::{ops::Mul, process::Output};
+use std::ops::Mul;
 
 use cust::memory::*;
 //use std::ops::Mul;

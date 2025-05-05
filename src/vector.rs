@@ -1,5 +1,5 @@
 use crate::tensor::Tensor;
-use crate::{CudaCtx, CUDA_CTX};
+use crate::{calc_grid_size, CudaCtx, CUDA_CTX};
 use bytemuck::Zeroable;
 use cust::launch;
 use cust::memory::*;
@@ -23,7 +23,7 @@ where
     fn add(mut self, mut other: Self) -> Self {
         assert_eq!(self.shape(), other.shape());
 
-        let _ctx = cust::quick_init().unwrap();
+        let ctx = CUDA_CTX.lock().unwrap();
 
         self.to_device();
         other.to_device();
@@ -31,15 +31,16 @@ where
         let len = self.shape()[0].max(self.shape()[1]);
         let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(len).unwrap();
 
-        let ctx = CUDA_CTX.lock().unwrap();
         let CudaCtx {
             ref vector,
             ref stream,
             ..
         } = *ctx;
 
+        let (bs, gs) = calc_grid_size(&self);
+
         unsafe {
-            let result = launch!(vector.add<<<1, 3, 0, stream>>>(
+            let result = launch!(vector.add<<<gs, bs, 0, stream>>>(
                 self.device_ptr().as_ref().unwrap().as_device_ptr(),
                 other.device_ptr().as_ref().unwrap().as_device_ptr(),
                 c_out.as_device_ptr(),
@@ -66,7 +67,7 @@ where
     fn mul(mut self, mut other: Self) -> T {
         assert_eq!(self.shape(), other.shape());
 
-        let _ctx = cust::quick_init().unwrap();
+        let ctx = CUDA_CTX.lock().unwrap();
 
         self.to_device();
         other.to_device();
@@ -74,15 +75,16 @@ where
         let len = self.shape()[0].max(self.shape()[1]);
         let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(1).unwrap();
 
-        let ctx = CUDA_CTX.lock().unwrap();
         let CudaCtx {
             ref vector,
             ref stream,
             ..
         } = *ctx;
 
+        let (bs, gs) = calc_grid_size(&self);
+
         unsafe {
-            let result = launch!(vector.dot_product<<<1, 3, 0, stream>>>(
+            let result = launch!(vector.dot_product<<<gs, bs, 0, stream>>>(
                 self.device_ptr().as_ref().unwrap().as_device_ptr(),
                 other.device_ptr().as_ref().unwrap().as_device_ptr(),
                 c_out.as_device_ptr(),

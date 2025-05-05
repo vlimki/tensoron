@@ -1,4 +1,5 @@
 use cust::context::Context;
+use cust::memory::DeviceCopy;
 use cust::module::Module;
 use cust::stream::*;
 use lazy_static::lazy_static;
@@ -35,7 +36,16 @@ impl Default for CudaCtx {
     }
 }
 
-pub type Matrix<T> = Tensor<T, 2>;
+//pub type Matrix<T> = Tensor<T, 2>;
+
+pub(crate) fn calc_grid_size<T, const R: usize>(t: &Tensor<T, R>) -> (u32, u32)
+where T: DeviceCopy
+{
+    let block_size = 256; // or 128, 512 based on occupancy tuning
+    let grid_size = (t.inner().len() as u32 + block_size - 1) / block_size;
+
+    (block_size, grid_size)
+}
 
 #[macro_export]
 macro_rules! tensor {
@@ -49,6 +59,22 @@ macro_rules! tensor {
 #[cfg(test)]
 mod tests {
     use crate::Tensor;
+    use crate::Vector;
+    use rand::distr::Uniform;
+    use rand::rngs::StdRng;
+    use rand::SeedableRng;
+    use rand::Rng;
+
+
+    fn generate_data() -> Vec<f32> {
+        let size: usize = 10_000_000;
+        let mut rng = StdRng::from_os_rng();
+        let uniform = Uniform::new(-1.0f32, 1.0).unwrap();
+
+        (0..size)
+            .map(|_| rng.sample(&uniform))
+            .collect()
+    }
 
     #[test]
     fn vectors() {
@@ -62,6 +88,11 @@ mod tests {
         assert_eq!(v3, tensor!([3,1][3.0, 6.0, 9.0]));
         assert_eq!(v3.scale(10.0), tensor!([3,1][30.0, 60.0, 90.0]));
         assert_eq!(v4, 28.0);
+
+        // Bigger vectors
+        let v5 = Vector::from(generate_data());
+        let v6 = Vector::from(generate_data());
+        let _ = v5 * v6;
     }
 
     #[test]
