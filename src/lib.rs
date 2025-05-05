@@ -7,8 +7,8 @@ use std::sync::Mutex;
 
 pub mod tensor;
 pub mod vector;
-pub use vector::Vector;
 pub use tensor::Tensor;
+pub use vector::Vector;
 
 struct CudaCtx {
     stream: Stream,
@@ -37,8 +37,6 @@ impl Default for CudaCtx {
 
 pub type Matrix<T> = Tensor<T, 2>;
 
-/// To separate column vectors and row vectors, we have the dimensions as either [1, N] or [N, 1].
-
 #[macro_export]
 macro_rules! tensor {
     ([$($shape:expr),*] [ $($elem:expr),* $(,)? ]) => {{
@@ -47,7 +45,6 @@ macro_rules! tensor {
         Tensor::<_, { SHAPE.len() }>::from(([ $($shape),* ], data))
     }};
 }
-
 
 #[cfg(test)]
 mod tests {

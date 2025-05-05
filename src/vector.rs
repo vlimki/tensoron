@@ -1,10 +1,11 @@
-use std::ops::Add;
 use crate::tensor::Tensor;
+use crate::{CudaCtx, CUDA_CTX};
 use bytemuck::Zeroable;
 use cust::launch;
 use cust::memory::*;
-use crate::{CudaCtx, CUDA_CTX};
+use std::ops::Add;
 
+/// To separate column vectors and row vectors, we have the dimensions as either [1, N] or [N, 1].
 pub type Vector<T> = Tensor<T, 2>;
 
 impl<T: DeviceCopy> From<Vec<T>> for Vector<T> {
@@ -31,7 +32,11 @@ where
         let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(len).unwrap();
 
         let ctx = CUDA_CTX.lock().unwrap();
-        let CudaCtx { ref module, ref stream, .. } = *ctx;
+        let CudaCtx {
+            ref module,
+            ref stream,
+            ..
+        } = *ctx;
 
         unsafe {
             let result = launch!(module.vec_add<<<1, 3, 0, stream>>>(

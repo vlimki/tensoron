@@ -5,7 +5,7 @@ use cust::memory::*;
 pub enum SetDevicePointer<T: DeviceCopy> {
     None,
     New,
-    Devbuf(DeviceBuffer<T>)
+    Devbuf(DeviceBuffer<T>),
 }
 
 /*pub type Scalar<T> = Tensor<T, 0>;
@@ -25,7 +25,7 @@ impl<T: DeviceCopy> Scalar<T> {
 #[derive(Debug)]
 pub struct Tensor<T, const R: usize>
 where
-    T: DeviceCopy
+    T: DeviceCopy,
 {
     _device_ptr: Option<DeviceBuffer<T>>,
     _inner: Vec<T>,
@@ -34,7 +34,7 @@ where
 
 impl<T, const R: usize> Drop for Tensor<T, R>
 where
-    T: DeviceCopy
+    T: DeviceCopy,
 {
     fn drop(&mut self) {
         let _ = self._device_ptr.take();
@@ -42,7 +42,8 @@ where
 }
 
 impl<T, const R: usize> Tensor<T, R>
-where T: DeviceCopy 
+where
+    T: DeviceCopy,
 {
     pub fn shape(&self) -> [usize; R] {
         self._shape
@@ -52,7 +53,7 @@ where T: DeviceCopy
         &self._device_ptr
     }
 
-    pub (crate)fn inner(&self) -> &Vec<T> {
+    pub(crate) fn inner(&self) -> &Vec<T> {
         &self._inner
     }
 
@@ -64,7 +65,6 @@ where T: DeviceCopy
         self._device_ptr = Some(DeviceBuffer::from_slice(&self._inner).unwrap());
     }
 
-
     // Element-wise map. Note that this discards the device pointer.
     pub fn map<U: DeviceCopy>(&self, f: impl Fn(&T) -> U) -> Tensor<U, R> {
         let data = self._inner.iter().map(f).collect::<Vec<_>>();
@@ -73,7 +73,8 @@ where T: DeviceCopy
 }
 
 impl<T, const R: usize> From<([usize; R], Vec<T>)> for Tensor<T, R>
-where T: DeviceCopy
+where
+    T: DeviceCopy,
 {
     fn from(value: ([usize; R], Vec<T>)) -> Self {
         Self {
@@ -85,7 +86,9 @@ where T: DeviceCopy
 }
 
 impl<T, const R: usize> PartialEq for Tensor<T, R>
-where T: DeviceCopy + PartialEq {
+where
+    T: DeviceCopy + PartialEq,
+{
     fn eq(&self, other: &Self) -> bool {
         self._inner == other._inner && self._shape == other._shape
     }
