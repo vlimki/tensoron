@@ -81,10 +81,6 @@ where
         }
     }
 
-    pub(crate) fn into_device(mut self) {
-        self._device_ptr = Some(DeviceBuffer::from_slice(&self._inner).unwrap());
-    }
-
     // Element-wise map. Note that this discards the device pointer.
     pub fn map<U: DeviceCopy>(&self, f: impl Fn(&T) -> U) -> Tensor<U, R> {
         let data = self._inner.iter().map(f).collect::<Vec<_>>();
