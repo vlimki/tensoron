@@ -165,7 +165,7 @@ where
     fn add(self, rhs: Self) -> Self::Output {
         let s = self.shape();
         match s {
-            [_, 1] | [1, _] => vector::add(self, rhs),
+            [_, 1] | [1, _] => execute_operation(self, rhs, Operation::VecAdd),
             _ => unimplemented!(),
         }
     }

@@ -1,5 +1,4 @@
 use crate::tensor::Tensor;
-use crate::{calc_grid_size, CudaCtx, CUDA_CTX};
 use cust::memory::*;
 
 pub type Matrix<T> = Tensor<T, 2>;

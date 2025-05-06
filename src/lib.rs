@@ -148,6 +148,20 @@ where T: DeviceCopy + Zeroable
                 )).unwrap()
             }
         }
+        VecAdd => {
+            let len = t1.shape()[0].max(t1.shape()[1]);
+            let (bs, gs) = calc_grid_size(&t1, &t2);
+
+            unsafe {
+                launch!(vector.add<<<gs, bs, 0, stream>>>(
+                    t1.device_ptr().as_ref().unwrap().as_device_ptr(),
+                    t2.device_ptr().as_ref().unwrap().as_device_ptr(),
+                    c_out.as_device_ptr(),
+                    len as std::os::raw::c_int,
+                )).unwrap()
+            }
+
+        }
         _ => unimplemented!()
     }
 
