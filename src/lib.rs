@@ -1,7 +1,9 @@
 use cust::context::Context;
-use cust::memory::DeviceCopy;
+use crate::matrix::Dimensions;
+use cust::memory::bytemuck::Zeroable;
+use cust::memory::{CopyDestination, DeviceBuffer, DeviceCopy};
 use cust::module::Module;
-use cust::stream::*;
+use cust::{launch, stream::*};
 use lazy_static::lazy_static;
 use std::ffi::CString;
 use std::sync::Mutex;
@@ -20,13 +22,11 @@ struct CudaCtx {
     _ctx: Context,
 }
 
-pub(crate) enum Operation<T>
-where T: DeviceCopy
-{
-    VecMul(Tensor<T, 2>, Tensor<T, 2>),
-    VecAdd(Tensor<T, 2>, Tensor<T, 2>),
-    MatMul(Tensor<T, 2>, Tensor<T, 2>),
-    MatAdd(Tensor<T, 2>, Tensor<T, 2>)
+pub(crate) enum Operation {
+    VecMul,
+    VecAdd,
+    MatMul,
+    MatAdd,
 }
 
 type Dimension = (u32, u32, u32);
@@ -55,8 +55,6 @@ impl Default for CudaCtx {
     }
 }
 
-//pub type Matrix<T> = Tensor<T, 2>;
-
 pub(crate) fn calc_grid_size<T>(t1: &Tensor<T, 2>, t2: &Tensor<T, 2>) -> (Dimension, Dimension)
 where
     T: DeviceCopy,
@@ -82,6 +80,90 @@ where
 
         }
     }
+}
+
+pub(crate) fn execute_operation<T>(mut t1: Tensor<T, 2>, mut t2: Tensor<T, 2>, op: Operation) -> Tensor<T, 2>
+where T: DeviceCopy + Zeroable
+{
+    use Operation::*;
+
+    let sz_new = match op {
+        MatMul => {
+            assert_eq!(t1.shape()[1], t2.shape()[0]);
+            t1.shape()[0] * t2.shape()[1]
+
+        }
+        VecAdd | MatAdd => {
+            assert_eq!(t1.shape(), t2.shape());
+            t1.shape()[0].max(t1.shape()[0])
+        }
+        VecMul => {
+            assert_eq!(t1.shape()[1], t2.shape()[0]);
+            assert_eq!(t1.shape()[0], t2.shape()[1]);
+            1
+        }
+    };
+
+    let ctx = CUDA_CTX.lock().unwrap();
+
+    t1.to_device();
+    t2.to_device();
+
+    let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(sz_new).unwrap();
+    let CudaCtx {
+        ref matrix,
+        ref vector,
+        ref stream,
+        ..
+    } = *ctx;
+
+    match op {
+        MatMul => {
+            let (bs, gs) = calc_grid_size(&t1, &t2);
+            let dims = Dimensions {
+                m1_rows: t1.shape()[0] as u32,
+                m1_cols: t1.shape()[1] as u32,
+                m2_rows: t2.shape()[0] as u32,
+                m2_cols: t2.shape()[1] as u32
+            };
+            unsafe {
+                launch!(matrix.matmul_kernel<<<gs, bs, 0, stream>>>(
+                    t1.device_ptr().as_ref().unwrap().as_device_ptr(),
+                    t1.device_ptr().as_ref().unwrap().as_device_ptr(),
+                    c_out.as_device_ptr(),
+                    dims
+                )).unwrap()
+            }
+        }
+        VecMul => {
+            let (bs, gs) = calc_grid_size(&t1, &t2);
+            let len = t1.shape()[0].max(t1.shape()[1]);
+
+            unsafe {
+                launch!(vector.dot_product<<<gs, bs, 0, stream>>>(
+                    t1.device_ptr().as_ref().unwrap().as_device_ptr(),
+                    t2.device_ptr().as_ref().unwrap().as_device_ptr(),
+                    c_out.as_device_ptr(),
+                    len as std::os::raw::c_int,
+                )).unwrap()
+            }
+        }
+        _ => unimplemented!()
+    }
+
+    let mut host_out = vec![T::zeroed(); sz_new];
+    c_out.copy_to(&mut host_out[..]).unwrap();
+
+    ctx.stream.synchronize().unwrap();
+    
+    let shape = match op {
+        MatMul => [t1.shape()[0], t2.shape()[1]],
+        VecAdd => t1.shape(),
+        MatAdd => t1.shape(),
+        VecMul => [1, 1]
+    };
+
+    return Tensor::from((shape, host_out));
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use crate::{matrix, vector};
+use crate::{execute_operation, matrix, vector, Operation};
 use std::ops::{Add, Mul};
 
 use bytemuck::Zeroable;
@@ -151,8 +151,8 @@ where
     fn mul(self, rhs: Self) -> Self::Output {
         let s = self.shape();
         match s {
-            [_, 1] | [1, _] => vector::mul(self, rhs),
-            [_, _] => matrix::mul(self, rhs)
+            [_, 1] | [1, _] => execute_operation(self, rhs, Operation::VecMul),
+            [_, _] => execute_operation(self, rhs, Operation::MatMul),
         }
     }
 }
