@@ -6,6 +6,8 @@ use cust::module::Module;
 use cust::{launch, stream::*};
 use lazy_static::lazy_static;
 use std::ffi::CString;
+use std::{env, fs};
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 pub mod matrix;
@@ -35,13 +37,20 @@ lazy_static! {
     pub(crate) static ref CUDA_CTX: Mutex<CudaCtx> = Mutex::new(CudaCtx::default());
 }
 
+fn load_ptx(src: &str) -> String {
+    let out_dir = env::var("OUT_DIR").unwrap();
+    let ptx_path = PathBuf::from(format!("{}/{}", out_dir, src));
+    fs::read_to_string(ptx_path).expect("Failed to read compiled PTX")
+}
+
+
 impl Default for CudaCtx {
     fn default() -> Self {
         let context = cust::quick_init().unwrap();
 
-        let ptx_vector = CString::new(include_str!("../kernels/vector.ptx")).unwrap();
+        let ptx_vector = CString::new(load_ptx("vector.ptx")).unwrap();
         let module_vector = Module::from_ptx_cstr(&ptx_vector, &[]).unwrap();
-        let ptx_matrix = CString::new(include_str!("../kernels/matrix.ptx")).unwrap();
+        let ptx_matrix = CString::new(load_ptx("matrix.ptx")).unwrap();
         let module_matrix = Module::from_ptx_cstr(&ptx_matrix, &[]).unwrap();
 
         let stream = Stream::new(StreamFlags::NON_BLOCKING, None).unwrap();
