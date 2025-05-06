@@ -20,8 +20,9 @@ assert_eq!(v4, tensor!([1, 1][28.0]));
 ### Todo
 - [ ] (!) Actually learn CUDA and write good kernels
 - [ ] Make the library GPU-local
-    - [ ] Treat device pointers as authoritative data; don't discard them
+    - Treat device pointers as authoritative data; don't discard them.
     - [ ] Do every operation on the GPU
+    - [ ] Redesign the execute_operation function to be more flexible and to support GPU locality (it's ugly right now)
 - [x] Compile CUDA at build-time (build.rs)
     - [ ] Support other types besides f32 by replacing float* with whatever type is needed in the CUDA code (build.rs)
 
