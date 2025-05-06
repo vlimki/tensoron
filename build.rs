@@ -28,8 +28,6 @@ fn main() {
     for kernel in ["vector", "matrix", "tensor"] {
         let src = format!("kernels/{kernel}.cu");
         let dst = format!("{out_dir}/{kernel}.ptx");
-        #[cfg(debug_assertions)]
-        std::fs::write("debug.txt", &dst).unwrap();
 
         compile_ptx(&src, &dst);
 
