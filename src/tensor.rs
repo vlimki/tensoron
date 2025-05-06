@@ -212,7 +212,6 @@ where
     pub fn transpose(self) -> Self {
         let s = self.shape();
         match s {
-            [_, 1] | [1, _] => vector::transpose(self),
             _ => unimplemented!(),
         }
     }

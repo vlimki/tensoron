@@ -176,7 +176,8 @@ where T: DeviceCopy + Zeroable
 
 #[cfg(test)]
 mod tests {
-    use crate::{tensor, Tensor, Vector};
+    use crate::Matrix;
+    use crate::{tensor, Tensor};
     use rand::distr::Uniform;
     use rand::rngs::StdRng;
     use rand::Rng;
@@ -203,8 +204,8 @@ mod tests {
         assert_eq!(v4, tensor!([1, 1][28.0]));
 
         // Bigger vectors
-        let v5 = Vector::from(generate_data());
-        let v6 = Vector::from(generate_data());
+        let v5 = Matrix::from(generate_data());
+        let v6 = Matrix::from(generate_data());
         let v7 = (v5.transpose() * v6).to_host();
 
         println!("{:#?}", v7);

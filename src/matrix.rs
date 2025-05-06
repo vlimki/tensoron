@@ -22,3 +22,21 @@ impl Dimensions {
         }
     }
 }
+
+impl<T: DeviceCopy> From<Vec<T>> for Matrix<T> {
+    fn from(v: Vec<T>) -> Self {
+        Tensor::from(([v.len(), 1], v))
+    }
+}
+
+
+// Impl later
+/*
+pub(crate) fn transpose<T>(mut v1: Matrix<T>) -> Matrix<T>
+where
+    T: DeviceCopy,
+{
+    let s = v1.shape();
+    v1._shape = [s[1], s[0]];
+    v1
+}*/
