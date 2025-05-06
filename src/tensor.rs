@@ -136,24 +136,7 @@ where
     T: DeviceCopy + PartialEq + Zeroable
 {
     fn eq(&self, other: &Self) -> bool {
-        assert_eq!(self._shape, other._shape);
-
-        let len = self.shape().iter().product();
-
-        let mut buf1 = vec![T::zeroed(); len];
-        let mut buf2 = vec![T::zeroed(); len];
-
-        match &self._device_ptr {
-            Some(buf) => buf.copy_to(&mut buf1).unwrap(),
-            None => buf1.copy_from_slice(&self._inner),
-        }
-
-        match &other._device_ptr {
-            Some(buf) => buf.copy_to(&mut buf2).unwrap(),
-            None => buf2.copy_from_slice(&other._inner),
-        }
-
-        buf1 == buf2
+        self.shape() == other.shape() && self.inner() == other.inner()
     }
 }
 
