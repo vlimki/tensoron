@@ -22,6 +22,9 @@ let m2 = tensor!([2, 2][2.0, 3.0, 4.0, 5.0]);
 let m3 = (m1.clone() * m2.clone()).to_host();
 assert_eq!(m3, tensor!([2, 2][10.0, 13.0, 22.0, 29.0]));
 
+// Indexing
+assert_eq!(m3.at([0, 1]).value(), 13.0);
+
 let m4 = (m1 + m2).to_host();
 assert_eq!(m4, tensor!([2, 2][3.0, 5.0, 7.0, 9.0]));
 ```
@@ -29,7 +32,6 @@ assert_eq!(m4, tensor!([2, 2][3.0, 5.0, 7.0, 9.0]));
 
 ### Todo
 - [ ] (!) Actually learn CUDA and write good kernels
-- [ ] Tensor indexing
 - [ ] Treat Vector<T> as Tensor<T, 1> exclusively; stop using that name for Tensor<T, 2> altogether
 
 - [x] Make the library GPU-local
@@ -45,3 +47,4 @@ assert_eq!(m4, tensor!([2, 2][3.0, 5.0, 7.0, 9.0]));
 - [x] `src/matrix.rs` comment, line 48
 - [x] Operation enum and a wrapper for launching kernels to reduce redundancy
 - [x] Matrix addition ~~Matrix type and its operations~~
+- [x] Tensor indexing
