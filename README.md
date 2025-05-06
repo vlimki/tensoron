@@ -32,14 +32,12 @@ assert_eq!(m4, tensor!([2, 2][3.0, 5.0, 7.0, 9.0]));
 
 ### Todo
 - [ ] (!) Actually learn CUDA and write good kernels
-- [ ] GPU operation traits: GPUMul, GPUAdd, etc. and then implement them for Tensor<T, 2> and Tensor<T, 1>
-    - [ ] This way `execute_operation` can be gotten rid of
-    - [ ] Treat Vector<T> as Tensor<T, 1> exclusively; stop using that name for Tensor<T, 2> altogether
-
 - [x] Make the library GPU-local
     - Treat device pointers as authoritative data; don't discard them.
     - [ ] Do every operation on the GPU
     - [x] Redesign the `execute_operation` function to be more flexible and to support GPU locality (it's ugly right now)
+- [ ] Transposition operator
+- [ ] Stride-aware kernels
 
 - [x] Compile CUDA at build-time (build.rs)
     - [ ] Support other types besides f32 by replacing float* with whatever type is needed in the CUDA code (build.rs)
@@ -50,3 +48,7 @@ assert_eq!(m4, tensor!([2, 2][3.0, 5.0, 7.0, 9.0]));
 - [x] Operation enum and a wrapper for launching kernels to reduce redundancy
 - [x] Matrix addition ~~Matrix type and its operations~~
 - [x] Tensor indexing
+- [x] GPU operation traits: GPUMul, GPUAdd, etc. and then implement them for Tensor<T, 2> and Tensor<T, 1>
+    - [x] This way `execute_operation` can be gotten rid of
+    - [x] Treat Vector<T> as Tensor<T, 1> exclusively; stop using that name for Tensor<T, 2> altogether
+
