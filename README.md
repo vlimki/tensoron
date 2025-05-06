@@ -2,36 +2,32 @@
 
 ### Example
 ```rust
-// Vectors ((1 x N) or (N x 1) matrices)
-let v1 = tensor!([3, 1][1.0f32, 2.0, 3.0]);
-let v2 = tensor!([3, 1][2.0, 4.0, 6.0]);
+// Vectors (Vector<T>)
+let v1 = tensor!([3][1.0f32, 2.0, 3.0]);
+let v2 = tensor!([3][2.0, 4.0, 6.0]);
 
-// The library is GPU-local. Always call to_host() before evaluating anything.
-let v3 = (v1.clone() + v2.clone()).to_host();
+let v3 = (v1.clone() + v2.clone()).cpu();
+assert_eq!(v3, tensor!([3][3.0, 6.0, 9.0]));
+assert_eq!(v3.clone().scale(10.0).cpu(), tensor!([3][30.0, 60.0, 90.0]));
 
-assert_eq!(v3, tensor!([3,1][3.0, 6.0, 9.0]));
-assert_eq!(v3.scale(10.0), tensor!([3,1][30.0, 60.0, 90.0]));
+let v4 = v1 * v2;
+assert_eq!(v4, 28.0);
 
-let v4 = (v1.transpose() * v2).to_host();
-assert_eq!(v4, tensor!([1, 1][28.0]));
-
-// Matrices
+// Matrices (Matrix<T>)
 let m1 = tensor!([2, 2][1.0f32, 2.0, 3.0, 4.0]);
 let m2 = tensor!([2, 2][2.0, 3.0, 4.0, 5.0]);
 
-let m3 = (m1.clone() * m2.clone()).to_host();
+let m3 = (m1 * m2).cpu();
 assert_eq!(m3, tensor!([2, 2][10.0, 13.0, 22.0, 29.0]));
 
-// Indexing
+// `.at()` returns a Tensor<T, R - N>, where N is the length of the index array.
+// A 2D index on a 2D tensor returns a Tensor<T, 0>, i.e. a Scalar<T>, on which you can call `.value()`.
 assert_eq!(m3.at([0, 1]).value(), 13.0);
-
-let m4 = (m1 + m2).to_host();
-assert_eq!(m4, tensor!([2, 2][3.0, 5.0, 7.0, 9.0]));
 ```
-
 
 ### Todo
 - [ ] (!) Actually learn CUDA and write good kernels
+    - [ ] Not just good kernels, but also hyper-optimize the crap out of them
 - [x] Make the library GPU-local
     - Treat device pointers as authoritative data; don't discard them.
     - [ ] Do every operation on the GPU
@@ -51,4 +47,3 @@ assert_eq!(m4, tensor!([2, 2][3.0, 5.0, 7.0, 9.0]));
 - [x] GPU operation traits: GPUMul, GPUAdd, etc. and then implement them for Tensor<T, 2> and Tensor<T, 1>
     - [x] This way `execute_operation` can be gotten rid of
     - [x] Treat Vector<T> as Tensor<T, 1> exclusively; stop using that name for Tensor<T, 2> altogether
-
