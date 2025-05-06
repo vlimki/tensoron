@@ -25,11 +25,10 @@ struct CudaCtx {
     _ctx: Context,
 }
 
+#[derive(Debug, Clone)]
 pub(crate) enum Operation {
-    VecMul,
-    VecAdd,
-    MatMul,
-    MatAdd,
+    Add,
+    Mul,
     Scale,
 }
 
@@ -71,18 +70,18 @@ impl Default for CudaCtx {
     }
 }
 
-pub(crate) fn calc_grid_size<T>(t1: &Tensor<T, 2>, t2: &Tensor<T, 2>) -> (Dimension, Dimension)
+pub(crate) fn calc_grid_size<T>(t1: &Tensor<T, 2>, t2: &Tensor<T, 2>, op: Operation) -> (Dimension, Dimension)
 where
     T: DeviceCopy,
 {
-    match t2.shape() {
-        [1, 1] | [1, _] | [_, 1] => {
-
+    use Operation::*;
+    match op {
+        Add | Scale => {
             let bs = 256;
-            let gs = (t1.inner().len() as u32 + bs - 1) / bs;
+            let gs = ((t1.shape()[0] * t1.shape()[1]) as u32 + bs - 1) / bs;
             return ((bs, 1, 1), (gs, 1, 1))
         }
-        _ =>  {
+        Mul => {
             let bs = (16, 16, 1);
 
             let s1 = t1.shape();
@@ -93,7 +92,6 @@ where
                 1
             );
             (bs, gs)
-
         }
     }
 }
@@ -103,28 +101,13 @@ where T: DeviceCopy + Zeroable
 {
     use Operation::*;
 
-    let sz_new = match op {
-        MatMul => {
-            assert_eq!(t1.shape()[1], t2.shape()[0]);
-            t1.shape()[0] * t2.shape()[1]
-
-        }
-        VecAdd => {
-            assert_eq!(t1.shape(), t2.shape());
-            t1.shape()[0].max(t1.shape()[0])
-        }
-        MatAdd => {
-            assert_eq!(t1.shape(), t2.shape());
-            t1.shape()[0] * t1.shape()[1]
-        
-        }
-        VecMul => {
-            assert_eq!(t1.shape()[1], t2.shape()[0]);
-            assert_eq!(t1.shape()[0], t2.shape()[1]);
-            1
-        }
-        Scale => t1.shape()[0] * t1.shape()[1]
+    let shape = match op {
+        Mul => [t1.shape()[0], t2.shape()[1]],
+        Add | Scale => t1.shape(),
     };
+
+    let (bs, gs) = calc_grid_size(&t1, &t2, op.clone());
+    let len = shape[0] * shape[1];
 
     let ctx = CUDA_CTX.lock().unwrap();
 
@@ -133,121 +116,57 @@ where T: DeviceCopy + Zeroable
 
     let CudaCtx {
         ref matrix,
-        ref vector,
         ref tensor,
         ref stream,
         ..
     } = *ctx;
 
     let output = match op {
-        MatMul => {
-            let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(sz_new).unwrap();
-            let (bs, gs) = calc_grid_size(&t1, &t2);
-            let dims = Dimensions {
-                m1_rows: t1.shape()[0] as u32,
-                m1_cols: t1.shape()[1] as u32,
-                m2_rows: t2.shape()[0] as u32,
-                m2_cols: t2.shape()[1] as u32
-            };
+        Mul => {
+            let output: DeviceBuffer<T> = DeviceBuffer::zeroed(t1.shape()[0] * t2.shape()[1]).unwrap();
+            let dims = Dimensions::from_shapes(&t1, &t2);
+
             unsafe {
                 launch!(matrix.mul<<<gs, bs, 0, stream>>>(
                     t1.device_ptr().as_ref().unwrap().as_device_ptr(),
                     t2.device_ptr().as_ref().unwrap().as_device_ptr(),
-                    c_out.as_device_ptr(),
+                    output.as_device_ptr(),
                     dims
                 )).unwrap()
             }
-            let mut host_out = vec![T::zeroed(); sz_new];
-            c_out.copy_to(&mut host_out[..]).unwrap();
-            host_out
+            return Tensor {
+                _device_ptr: Some(output),
+                _inner: vec![],
+                _shape: [t1.shape()[0], t2.shape()[1]]
+            }
         }
-        MatAdd => {
-            let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(sz_new).unwrap();
-            let (bs, gs) = calc_grid_size(&t1, &t2);
-            let dims = Dimensions {
-                m1_rows: t1.shape()[0] as u32,
-                m1_cols: t1.shape()[1] as u32,
-                m2_rows: t2.shape()[0] as u32,
-                m2_cols: t2.shape()[1] as u32
-            };
+        Add => {
+            assert_eq!(t1.shape(), t2.shape());
 
             unsafe {
-                launch!(matrix.add<<<gs, bs, 0, stream>>>(
+                launch!(tensor.add<<<gs, bs, 0, stream>>>(
                     t1.device_ptr().as_ref().unwrap().as_device_ptr(),
                     t2.device_ptr().as_ref().unwrap().as_device_ptr(),
-                    c_out.as_device_ptr(),
-                    dims
+                    len
                 )).unwrap()
             }
-            let mut host_out = vec![T::zeroed(); sz_new];
-            c_out.copy_to(&mut host_out[..]).unwrap();
-            host_out
-        }
-        VecMul => {
-            let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(sz_new).unwrap();
-            let (bs, gs) = calc_grid_size(&t1, &t2);
-            let len = t1.shape()[0].max(t1.shape()[1]);
-
-            unsafe {
-                launch!(vector.dot_product<<<gs, bs, 0, stream>>>(
-                    t1.device_ptr().as_ref().unwrap().as_device_ptr(),
-                    t2.device_ptr().as_ref().unwrap().as_device_ptr(),
-                    c_out.as_device_ptr(),
-                    len as std::os::raw::c_int,
-                )).unwrap()
-            }
-            let mut host_out = vec![T::zeroed(); sz_new];
-            c_out.copy_to(&mut host_out[..]).unwrap();
-            host_out
-        }
-        VecAdd => {
-            let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(sz_new).unwrap();
-            let len = t1.shape()[0].max(t1.shape()[1]);
-            let (bs, gs) = calc_grid_size(&t1, &t2);
-
-            unsafe {
-                launch!(vector.add<<<gs, bs, 0, stream>>>(
-                    t1.device_ptr().as_ref().unwrap().as_device_ptr(),
-                    t2.device_ptr().as_ref().unwrap().as_device_ptr(),
-                    c_out.as_device_ptr(),
-                    len as std::os::raw::c_int,
-                )).unwrap()
-            }
-            let mut host_out = vec![T::zeroed(); sz_new];
-            c_out.copy_to(&mut host_out[..]).unwrap();
-            host_out
+            t1
         }
         Scale => {
-            let (bs, gs) = calc_grid_size(&t1, &t2);
-            let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(sz_new).unwrap();
-
             unsafe {
                 launch!(tensor.scale<<<gs, bs, 0, stream>>>(
                     t1.device_ptr().as_ref().unwrap().as_device_ptr(),
-                    t2.inner()[0],
-                    c_out.as_device_ptr(),
-                    sz_new as std::os::raw::c_int,
+                    t2.device_ptr().as_ref().unwrap().as_device_ptr(),
+                    len as std::os::raw::c_int,
                 )).unwrap()
             }
-
-            let mut host_out = vec![T::zeroed(); sz_new];
-            c_out.copy_to(&mut host_out[..]).unwrap();
-            host_out
+            t1
         }
     };
 
+    stream.synchronize().unwrap();
 
-    ctx.stream.synchronize().unwrap();
-    
-    let shape = match op {
-        MatMul => [t1.shape()[0], t2.shape()[1]],
-        VecAdd => t1.shape(),
-        MatAdd => t1.shape(),
-        VecMul => [1, 1],
-        Scale => t1.shape()
-    };
-
-    return Tensor::from((shape, output));
+    output
 }
 
 #[cfg(test)]
@@ -259,7 +178,7 @@ mod tests {
     use rand::SeedableRng;
 
     fn generate_data() -> Vec<f32> {
-        let size: usize = 10_000_000;
+        let size: usize = 100_000;
         let mut rng = StdRng::from_os_rng();
         let uniform = Uniform::new(-1.0f32, 1.0).unwrap();
 
@@ -271,19 +190,19 @@ mod tests {
         let v1 = tensor!([3, 1][1.0f32, 2.0, 3.0]);
         let v2 = tensor!([3, 1][2.0, 4.0, 6.0]);
 
-        let v3 = v1.clone() + v2.clone();
-
-        let v4 = v1 * v2.transpose();
-
+        let v3 = (v1.clone() + v2.clone()).to_host();
         assert_eq!(v3, tensor!([3,1][3.0, 6.0, 9.0]));
-        println!("{:#?}", v3.clone().scale(10.0));
-        assert_eq!(v3.scale(10.0), tensor!([3,1][30.0, 60.0, 90.0]));
+        assert_eq!(v3.clone().scale(10.0), tensor!([3,1][30.0, 60.0, 90.0]));
+
+        let v4 = (v1.transpose() * v2).to_host();
         assert_eq!(v4, tensor!([1, 1][28.0]));
 
         // Bigger vectors
         let v5 = Vector::from(generate_data());
         let v6 = Vector::from(generate_data());
-        let _ = v5 * v6.transpose();
+        let v7 = (v5.transpose() * v6).to_host();
+
+        println!("{:#?}", v7);
     }
 
     #[test]
@@ -291,10 +210,11 @@ mod tests {
         let m1 = tensor!([2, 2][1.0f32, 2.0, 3.0, 4.0]);
         let m2 = tensor!([2, 2][2.0, 3.0, 4.0, 5.0]);
 
-        let m3 = m1.clone() * m2.clone();
+        let m3 = (m1.clone() * m2.clone()).to_host();
         assert_eq!(m3, tensor!([2, 2][10.0, 13.0, 22.0, 29.0]));
 
-        let m4 = m1 + m2;
+        let m4 = (m1 + m2).to_host();
+        println!("{:#?}", m4);
         assert_eq!(m4, tensor!([2, 2][3.0, 5.0, 7.0, 9.0]));
     } 
 

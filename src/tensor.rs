@@ -75,11 +75,7 @@ where
         execute_operation(self, tensor!([1,1][value]), Operation::Scale)
     }
 }
-
-impl<T, const R: usize> Tensor<T, R>
-where
-    T: DeviceCopy,
-{
+impl<T: DeviceCopy, const R: usize> Tensor<T, R> {
     pub fn shape(&self) -> [usize; R] {
         self._shape
     }
@@ -92,17 +88,34 @@ where
         &self._inner
     }
 
-    pub(crate) fn to_device(&mut self) {
-        if let None = self._device_ptr {
-            self._device_ptr = Some(DeviceBuffer::from_slice(&self._inner).unwrap());
-        }
-    }
-
-    // Element-wise map. Note that this discards the device pointer.
     pub fn map<U: DeviceCopy>(&self, f: impl Fn(&T) -> U) -> Tensor<U, R> {
         let data = self._inner.iter().map(f).collect::<Vec<_>>();
         Tensor::<U, R>::from((self._shape, data))
     }
+}
+
+
+impl<T, const R: usize> Tensor<T, R>
+where
+    T: DeviceCopy + Zeroable,
+{
+    pub fn to_device(&mut self) {
+        if let None = self._device_ptr {
+            self._device_ptr = Some(DeviceBuffer::from_slice(&self._inner).unwrap());
+            self._inner = vec![];
+        }
+    }
+
+    pub fn to_host(mut self) -> Self {
+        if let Some(ref ptr) = self._device_ptr {
+            let mut host_out = vec![T::zeroed(); self.shape()[0] * self.shape()[1]];
+            ptr.copy_to(&mut host_out[..]).unwrap();
+            self._inner = host_out;
+        }
+        self
+    }
+
+    // Element-wise map. Note that this discards the device pointer.
 }
 
 impl<T, const R: usize> From<([usize; R], Vec<T>)> for Tensor<T, R>
@@ -120,10 +133,27 @@ where
 
 impl<T, const R: usize> PartialEq for Tensor<T, R>
 where
-    T: DeviceCopy + PartialEq,
+    T: DeviceCopy + PartialEq + Zeroable
 {
     fn eq(&self, other: &Self) -> bool {
-        self._inner == other._inner && self._shape == other._shape
+        assert_eq!(self._shape, other._shape);
+
+        let len = self.shape().iter().product();
+
+        let mut buf1 = vec![T::zeroed(); len];
+        let mut buf2 = vec![T::zeroed(); len];
+
+        match &self._device_ptr {
+            Some(buf) => buf.copy_to(&mut buf1).unwrap(),
+            None => buf1.copy_from_slice(&self._inner),
+        }
+
+        match &other._device_ptr {
+            Some(buf) => buf.copy_to(&mut buf2).unwrap(),
+            None => buf2.copy_from_slice(&other._inner),
+        }
+
+        buf1 == buf2
     }
 }
 
@@ -149,11 +179,7 @@ where
 {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self::Output {
-        let s = self.shape();
-        match s {
-            [_, 1] | [1, _] => execute_operation(self, rhs, Operation::VecMul),
-            _ => execute_operation(self, rhs, Operation::MatMul),
-        }
+        execute_operation(self, rhs, Operation::Mul)
     }
 }
 
@@ -163,10 +189,6 @@ where
 {
     type Output = Self;
     fn add(self, rhs: Self) -> Self::Output {
-        let s = self.shape();
-        match s {
-            [_, 1] | [1, _] => execute_operation(self, rhs, Operation::VecAdd),
-            _ => execute_operation(self, rhs, Operation::MatAdd),
-        }
+        execute_operation(self, rhs, Operation::Add)
     }
 }
