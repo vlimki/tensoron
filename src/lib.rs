@@ -20,6 +20,15 @@ struct CudaCtx {
     _ctx: Context,
 }
 
+pub(crate) enum Operation<T>
+where T: DeviceCopy
+{
+    VecMul(Tensor<T, 2>, Tensor<T, 2>),
+    VecAdd(Tensor<T, 2>, Tensor<T, 2>),
+    MatMul(Tensor<T, 2>, Tensor<T, 2>),
+    MatAdd(Tensor<T, 2>, Tensor<T, 2>)
+}
+
 type Dimension = (u32, u32, u32);
 
 lazy_static! {
