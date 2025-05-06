@@ -9,8 +9,17 @@ struct dimensions_t {
 	uint32_t m2_cols;
 };
 
+extern "C" __global__ void add(float* m1, float* m2, float* result, struct dimensions_t dims) {
+	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	int row = blockIdx.y * blockDim.y + threadIdx.y;
+
+	if(col < dims.m2_cols && row < dims.m1_rows) {
+		result[row * dims.m2_cols + col] = m1[row * dims.m2_cols + col] + m2[row * dims.m2_cols + col];
+	}
+}
+
 // Don't laugh at this kernel lol
-extern "C" __global__ void matmul_kernel(float* m1, float* m2, float* result, struct dimensions_t dims) {
+extern "C" __global__ void mul(float* m1, float* m2, float* result, struct dimensions_t dims) {
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 

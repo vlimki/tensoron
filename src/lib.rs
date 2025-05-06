@@ -93,9 +93,14 @@ where T: DeviceCopy + Zeroable
             t1.shape()[0] * t2.shape()[1]
 
         }
-        VecAdd | MatAdd => {
+        VecAdd => {
             assert_eq!(t1.shape(), t2.shape());
             t1.shape()[0].max(t1.shape()[0])
+        }
+        MatAdd => {
+            assert_eq!(t1.shape(), t2.shape());
+            t1.shape()[0] * t1.shape()[1]
+        
         }
         VecMul => {
             assert_eq!(t1.shape()[1], t2.shape()[0]);
@@ -127,7 +132,25 @@ where T: DeviceCopy + Zeroable
                 m2_cols: t2.shape()[1] as u32
             };
             unsafe {
-                launch!(matrix.matmul_kernel<<<gs, bs, 0, stream>>>(
+                launch!(matrix.mul<<<gs, bs, 0, stream>>>(
+                    t1.device_ptr().as_ref().unwrap().as_device_ptr(),
+                    t2.device_ptr().as_ref().unwrap().as_device_ptr(),
+                    c_out.as_device_ptr(),
+                    dims
+                )).unwrap()
+            }
+        }
+        MatAdd => {
+            let (bs, gs) = calc_grid_size(&t1, &t2);
+            let dims = Dimensions {
+                m1_rows: t1.shape()[0] as u32,
+                m1_cols: t1.shape()[1] as u32,
+                m2_rows: t2.shape()[0] as u32,
+                m2_cols: t2.shape()[1] as u32
+            };
+
+            unsafe {
+                launch!(matrix.add<<<gs, bs, 0, stream>>>(
                     t1.device_ptr().as_ref().unwrap().as_device_ptr(),
                     t2.device_ptr().as_ref().unwrap().as_device_ptr(),
                     c_out.as_device_ptr(),
@@ -162,7 +185,6 @@ where T: DeviceCopy + Zeroable
             }
 
         }
-        _ => unimplemented!()
     }
 
     let mut host_out = vec![T::zeroed(); sz_new];
@@ -220,9 +242,11 @@ mod tests {
         let m1 = tensor!([2, 2][1.0f32, 2.0, 3.0, 4.0]);
         let m2 = tensor!([2, 2][2.0, 3.0, 4.0, 5.0]);
 
-        let m3 = m1 * m2;
-        println!("{:#?}", m3);
+        let m3 = m1.clone() * m2.clone();
         assert_eq!(m3, tensor!([2, 2][10.0, 13.0, 22.0, 29.0]));
+
+        let m4 = m1 + m2;
+        assert_eq!(m4, tensor!([2, 2][3.0, 5.0, 7.0, 9.0]));
     } 
 
     #[test]

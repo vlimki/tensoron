@@ -152,7 +152,7 @@ where
         let s = self.shape();
         match s {
             [_, 1] | [1, _] => execute_operation(self, rhs, Operation::VecMul),
-            [_, _] => execute_operation(self, rhs, Operation::MatMul),
+            _ => execute_operation(self, rhs, Operation::MatMul),
         }
     }
 }
@@ -166,7 +166,7 @@ where
         let s = self.shape();
         match s {
             [_, 1] | [1, _] => execute_operation(self, rhs, Operation::VecAdd),
-            _ => unimplemented!(),
+            _ => execute_operation(self, rhs, Operation::MatAdd),
         }
     }
 }
