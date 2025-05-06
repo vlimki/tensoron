@@ -1,5 +1,9 @@
+use std::ops::Add;
+
 use bytemuck::Zeroable;
-use cust::memory::*;
+use cust::{launch, memory::*};
+
+use crate::{ops::*, CudaCtx, CUDA_CTX};
 
 pub type Scalar<T> = Tensor<T, 0>;
 
@@ -80,12 +84,78 @@ impl<T: DeviceCopy, const R: usize> Tensor<T, R> {
     }
 }
 
+impl<T: DeviceCopy + Zeroable, const R: usize> GpuAdd<T> for Tensor<T, R> {
+    type Output = Self;
+
+    fn gpu_add(mut self, mut rhs: Self) -> Self {
+        assert_eq!(self.shape(), rhs.shape());
+        let ctx = CUDA_CTX.lock().unwrap();
+
+        self.gpu();
+        rhs.gpu();
+
+        // Make a proper grid calc function eventually
+        let len: usize = self.shape().iter().product();
+        let bs = 256;
+        let gs = (self.shape()[0] as u32 + bs - 1) / bs;
+
+        let CudaCtx { ref tensor, ref stream, .. } = *ctx;
+
+        unsafe {
+            launch!(tensor.add<<<gs, bs, 0, stream>>>(
+                self.device_ptr().as_ref().unwrap().as_device_ptr(),
+                rhs.device_ptr().as_ref().unwrap().as_device_ptr(),
+                len as i32,
+            )).unwrap()
+        }
+
+        self
+    }
+}
+
+impl<T: DeviceCopy + Zeroable, const R: usize> Add for Tensor<T, R> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        self.gpu_add(rhs)
+    }
+}
+
+impl<T: DeviceCopy + Zeroable, const R: usize> GpuScale<T> for Tensor<T, R> {
+    type Output = Self;
+
+    fn gpu_scale(mut self, rhs: T) -> Self {
+        let ctx = CUDA_CTX.lock().unwrap();
+
+        let mut scalar_tensor = tensor!([1, 1][rhs]);
+
+        self.gpu();
+        scalar_tensor.gpu();
+
+        // Make a proper grid calc function eventually
+        let len: usize = self.shape().iter().product();
+        let bs = 256;
+        let gs = (self.shape()[0] as u32 + bs - 1) / bs;
+
+        let CudaCtx { ref tensor, ref stream, .. } = *ctx;
+
+        unsafe {
+            launch!(tensor.scale<<<gs, bs, 0, stream>>>(
+                self.device_ptr().as_ref().unwrap().as_device_ptr(),
+                scalar_tensor.device_ptr().as_ref().unwrap().as_device_ptr(),
+                len as i32,
+            )).unwrap()
+        }
+
+        self
+    }
+}
 
 impl<T, const R: usize> Tensor<T, R>
 where
     T: DeviceCopy + Zeroable,
 {
-    pub fn to_device(&mut self) {
+    pub fn gpu(&mut self) {
         if let None = self._device_ptr {
             self._device_ptr = Some(DeviceBuffer::from_slice(&self._inner).unwrap());
             self._inner = vec![];
@@ -115,6 +185,10 @@ where
         }
     }
 
+    pub fn scale(self, rhs: T) -> Self {
+        self.gpu_scale(rhs)
+    }
+
     pub fn at<const N: usize>(&self, index: [usize; N]) -> Tensor<T, {R - N}>
         where T: DeviceCopy, [(); R - N]: {
         let offset = Iterator::zip(index.iter(), self._strides.iter()).map(|(a, b)| a * b).sum();
@@ -142,16 +216,14 @@ where
         }
     }
 
-    pub fn to_host(mut self) -> Self {
+    pub fn cpu(mut self) -> Self {
         if let Some(ref ptr) = self._device_ptr {
-            let mut host_out = vec![T::zeroed(); self.shape()[0] * self.shape()[1]];
+            let mut host_out = vec![T::zeroed(); self.shape().iter().product()];
             ptr.copy_to(&mut host_out[..]).unwrap();
             self._inner = host_out;
         }
         self
     }
-
-    // Element-wise map. Note that this discards the device pointer.
 }
 
 impl<T, const R: usize> From<([usize; R], Vec<T>)> for Tensor<T, R>

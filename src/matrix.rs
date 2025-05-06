@@ -1,7 +1,7 @@
-use std::ops::{Add, Mul};
+use std::ops::Mul;
 
-use crate::{execute_operation, tensor, Tensor, Operation};
-use cust::memory::{bytemuck::Zeroable, *};
+use crate::{calc_grid_size, ops::GpuMul, CudaCtx, Tensor, CUDA_CTX};
+use cust::{launch, memory::{bytemuck::Zeroable, *}};
 
 pub type Matrix<T> = Tensor<T, 2>;
 
@@ -30,7 +30,41 @@ impl<T: DeviceCopy> From<Vec<T>> for Matrix<T> {
         Tensor::from(([v.len(), 1], v))
     }
 }
+impl<T> GpuMul for Matrix<T>
+where T: DeviceCopy + Zeroable {
+    type Output = Self;
+    fn gpu_mul(mut self, mut rhs: Self) -> Self::Output {
+        let ctx = CUDA_CTX.lock().unwrap();
 
+        self.gpu();
+        rhs.gpu();
+
+        let CudaCtx {
+            ref matrix,
+            ref stream,
+            ..
+        } = *ctx;
+
+        let output: DeviceBuffer<T> = DeviceBuffer::zeroed(self.shape()[0] * rhs.shape()[1]).unwrap();
+        let dims = Dimensions::from_shapes(&self, &rhs);
+        let (bs, gs) = calc_grid_size(&self, &rhs);
+
+        unsafe {
+            launch!(matrix.mul<<<gs, bs, 0, stream>>>(
+                self.device_ptr().as_ref().unwrap().as_device_ptr(),
+                rhs.device_ptr().as_ref().unwrap().as_device_ptr(),
+                output.as_device_ptr(),
+                dims
+            )).unwrap()
+        }
+        return Tensor {
+            _device_ptr: Some(output),
+            _inner: vec![],
+            _shape: [self.shape()[0], rhs.shape()[1]],
+            _strides: [rhs.shape()[1], 1]
+        }
+    }
+}
 
 // Impl later
 impl<T> Matrix<T>
@@ -51,25 +85,6 @@ where
 {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self::Output {
-        execute_operation(self, rhs, Operation::Mul)
-    }
-}
-
-impl<T> Add for Matrix<T>
-where
-    T: DeviceCopy + Zeroable,
-{
-    type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output {
-        execute_operation(self, rhs, Operation::Add)
-    }
-}
-
-impl<T> Matrix<T>
-where
-    T: DeviceCopy + Mul<Output = T> + Zeroable
-{
-    pub fn scale(self, value: T) -> Self {
-        execute_operation(self, tensor!([1,1][value]), Operation::Scale)
+        self.gpu_mul(rhs)
     }
 }

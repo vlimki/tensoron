@@ -4,7 +4,7 @@ use cust::launch;
 use cust::memory::bytemuck::Zeroable;
 use cust::memory::{CopyDestination, DeviceBuffer, DeviceCopy};
 
-use crate::{tensor, CudaCtx, Tensor, CUDA_CTX};
+use crate::{CudaCtx, Tensor, CUDA_CTX};
 use crate::ops::*;
 
 pub type Vector<T> = Tensor<T, 1>;
@@ -15,8 +15,8 @@ impl<T: DeviceCopy + Zeroable> GpuMul for Vector<T> {
     fn gpu_mul(mut self, mut rhs: Self) -> T {
         let ctx = CUDA_CTX.lock().unwrap();
 
-        self.to_device();
-        rhs.to_device();
+        self.gpu();
+        rhs.gpu();
 
         let len = self.shape()[0];
         let bs = 256;
@@ -40,65 +40,6 @@ impl<T: DeviceCopy + Zeroable> GpuMul for Vector<T> {
         host[0]
     }
 }
-
-impl<T: DeviceCopy + Zeroable> GpuAdd for Vector<T> {
-    type Output = Self;
-
-    fn gpu_add(mut self, mut rhs: Self) -> Self {
-        let ctx = CUDA_CTX.lock().unwrap();
-
-        self.to_device();
-        rhs.to_device();
-
-        // Make a proper grid calc function eventually
-        let len = self.shape()[0];
-        let bs = 256;
-        let gs = (self.shape()[0] as u32 + bs - 1) / bs;
-
-        let CudaCtx { ref tensor, ref stream, .. } = *ctx;
-
-        unsafe {
-            launch!(tensor.add<<<gs, bs, 0, stream>>>(
-                self.device_ptr().as_ref().unwrap().as_device_ptr(),
-                rhs.device_ptr().as_ref().unwrap().as_device_ptr(),
-                len,
-            )).unwrap()
-        }
-
-        self
-    }
-}
-
-impl<T: DeviceCopy + Zeroable> GpuScale<T> for Vector<T> {
-    type Output = Self;
-
-    fn gpu_scale(mut self, rhs: T) -> Self {
-        let ctx = CUDA_CTX.lock().unwrap();
-
-        let mut scalar_tensor = tensor!([1, 1][rhs]);
-
-        self.to_device();
-        scalar_tensor.to_device();
-
-        // Make a proper grid calc function eventually
-        let len = self.shape()[0];
-        let bs = 256;
-        let gs = (self.shape()[0] as u32 + bs - 1) / bs;
-
-        let CudaCtx { ref tensor, ref stream, .. } = *ctx;
-
-        unsafe {
-            launch!(tensor.scale<<<gs, bs, 0, stream>>>(
-                self.device_ptr().as_ref().unwrap().as_device_ptr(),
-                scalar_tensor.device_ptr().as_ref().unwrap().as_device_ptr(),
-                len,
-            )).unwrap()
-        }
-
-        self
-    }
-}
-
 
 impl<T: DeviceCopy + Zeroable> Mul for Vector<T> {
     type Output = T;

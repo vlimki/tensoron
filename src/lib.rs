@@ -1,11 +1,9 @@
 #![feature(generic_const_exprs)]
 
 use cust::context::Context;
-use crate::matrix::Dimensions;
-use cust::memory::bytemuck::Zeroable;
-use cust::memory::{CopyDestination, DeviceBuffer, DeviceCopy};
+use cust::memory::DeviceCopy;
 use cust::module::Module;
-use cust::{launch, stream::*};
+use cust::stream::*;
 use lazy_static::lazy_static;
 use std::ffi::CString;
 use std::{env, fs};
@@ -27,14 +25,6 @@ struct CudaCtx {
     tensor: Module,
     matrix: Module,
     _ctx: Context,
-}
-
-
-#[derive(Debug, Clone)]
-pub(crate) enum Operation {
-    Add,
-    Mul,
-    Scale,
 }
 
 type Dimension = (u32, u32, u32);
@@ -75,109 +65,25 @@ impl Default for CudaCtx {
     }
 }
 
-pub(crate) fn calc_grid_size<T>(t1: &Tensor<T, 2>, t2: &Tensor<T, 2>, op: Operation) -> (Dimension, Dimension)
+pub(crate) fn calc_grid_size<T>(t1: &Tensor<T, 2>, t2: &Tensor<T, 2>) -> (Dimension, Dimension)
 where
     T: DeviceCopy,
 {
-    use Operation::*;
-    match op {
-        Add | Scale => {
-            let bs = 256;
-            let gs = ((t1.shape()[0] * t1.shape()[1]) as u32 + bs - 1) / bs;
-            return ((bs, 1, 1), (gs, 1, 1))
-        }
-        Mul => {
-            let bs = (16, 16, 1);
+    let bs = (16, 16, 1);
 
-            let s1 = t1.shape();
-            let s2 = t2.shape();
-            let gs = (
-                (s2[1] as usize + bs.0 as usize - 1) as u32 / bs.0,
-                (s1[0] as usize + bs.1 as usize - 1) as u32 / bs.1,
-                1
-            );
-            (bs, gs)
-        }
-    }
-}
-
-pub(crate) fn execute_operation<T>(mut t1: Tensor<T, 2>, mut t2: Tensor<T, 2>, op: Operation) -> Tensor<T, 2>
-where T: DeviceCopy + Zeroable
-{
-    use Operation::*;
-
-    let shape = match op {
-        Mul => [t1.shape()[0], t2.shape()[1]],
-        Add | Scale => t1.shape(),
-    };
-
-    let (bs, gs) = calc_grid_size(&t1, &t2, op.clone());
-    let len = shape[0] * shape[1];
-
-    let ctx = CUDA_CTX.lock().unwrap();
-
-    t1.to_device();
-    t2.to_device();
-
-    let CudaCtx {
-        ref matrix,
-        ref tensor,
-        ref stream,
-        ..
-    } = *ctx;
-
-    let output = match op {
-        Mul => {
-            let output: DeviceBuffer<T> = DeviceBuffer::zeroed(t1.shape()[0] * t2.shape()[1]).unwrap();
-            let dims = Dimensions::from_shapes(&t1, &t2);
-
-            unsafe {
-                launch!(matrix.mul<<<gs, bs, 0, stream>>>(
-                    t1.device_ptr().as_ref().unwrap().as_device_ptr(),
-                    t2.device_ptr().as_ref().unwrap().as_device_ptr(),
-                    output.as_device_ptr(),
-                    dims
-                )).unwrap()
-            }
-            return Tensor {
-                _device_ptr: Some(output),
-                _inner: vec![],
-                _shape: [t1.shape()[0], t2.shape()[1]],
-                _strides: [t2.shape()[1], 1]
-            }
-        }
-        Add => {
-            assert_eq!(t1.shape(), t2.shape());
-
-            unsafe {
-                launch!(tensor.add<<<gs, bs, 0, stream>>>(
-                    t1.device_ptr().as_ref().unwrap().as_device_ptr(),
-                    t2.device_ptr().as_ref().unwrap().as_device_ptr(),
-                    len
-                )).unwrap()
-            }
-            t1
-        }
-        Scale => {
-            unsafe {
-                launch!(tensor.scale<<<gs, bs, 0, stream>>>(
-                    t1.device_ptr().as_ref().unwrap().as_device_ptr(),
-                    t2.device_ptr().as_ref().unwrap().as_device_ptr(),
-                    len as std::os::raw::c_int,
-                )).unwrap()
-            }
-            t1
-        }
-    };
-
-    stream.synchronize().unwrap();
-
-    output
+    let s1 = t1.shape();
+    let s2 = t2.shape();
+    let gs = (
+        (s2[1] as usize + bs.0 as usize - 1) as u32 / bs.0,
+        (s1[0] as usize + bs.1 as usize - 1) as u32 / bs.1,
+        1
+    );
+    (bs, gs)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Matrix, Vector};
+    use crate::Vector;
     use crate::{tensor, Tensor};
     use rand::distr::Uniform;
     use rand::rngs::StdRng;
@@ -197,9 +103,9 @@ mod tests {
         let v1 = tensor!([3][1.0f32, 2.0, 3.0]);
         let v2 = tensor!([3][2.0, 4.0, 6.0]);
 
-        /*let v3 = (v1.clone() + v2.clone()).to_host();
-        assert_eq!(v3, tensor!([3,1][3.0, 6.0, 9.0]));
-        assert_eq!(v3.clone().scale(10.0), tensor!([3,1][30.0, 60.0, 90.0]));*/
+        let v3 = (v1.clone() + v2.clone()).cpu();
+        assert_eq!(v3, tensor!([3][3.0, 6.0, 9.0]));
+        assert_eq!(v3.clone().scale(10.0).cpu(), tensor!([3][30.0, 60.0, 90.0]));
 
         // Currently returns a scalar, maybe I'll change it to a Tensor<T, 1> later.
         let v4 = v1 * v2;
@@ -218,11 +124,11 @@ mod tests {
         let m1 = tensor!([2, 2][1.0f32, 2.0, 3.0, 4.0]);
         let m2 = tensor!([2, 2][2.0, 3.0, 4.0, 5.0]);
 
-        let m3 = (m1.clone() * m2.clone()).to_host();
+        let m3 = (m1.clone() * m2.clone()).cpu();
         assert_eq!(m3, tensor!([2, 2][10.0, 13.0, 22.0, 29.0]));
         assert_eq!(m3.at([0, 1]).value(), 13.0);
 
-        let m4 = (m1 + m2).to_host();
+        let m4 = (m1 + m2).cpu();
         println!("{:#?}", m4);
         assert_eq!(m4, tensor!([2, 2][3.0, 5.0, 7.0, 9.0]));
     } 
