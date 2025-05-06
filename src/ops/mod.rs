@@ -1,5 +1,6 @@
 pub trait GpuAdd<Rhs = Self> {
-    fn gpu_add(self, rhs: Self) -> Self;
+    type Output;
+    fn gpu_add(self, rhs: Self) -> Self::Output;
 }
 
 pub trait GpuMul<Rhs = Self> {
@@ -7,6 +8,7 @@ pub trait GpuMul<Rhs = Self> {
     fn gpu_mul(self, rhs: Self) -> Self::Output;
 }
 
-pub trait GpuScale<Rhs = Self> {
-    fn gpu_scale(self, rhs: Self) -> Self;
+pub trait GpuScale<T> {
+    type Output;
+    fn gpu_scale(self, rhs: T) -> Self::Output;
 }
