@@ -5,7 +5,7 @@ use bytemuck::Zeroable;
 use cust::memory::*;
 //use std::ops::Mul;
 
-/*pub type Scalar<T> = Tensor<T, 0>;
+pub type Scalar<T> = Tensor<T, 0>;
 
 impl<T: DeviceCopy> From<T> for Scalar<T> {
     fn from(value: T) -> Self {
@@ -17,7 +17,7 @@ impl<T: DeviceCopy> Scalar<T> {
     pub fn value(&self) -> T {
         self.inner()[0]
     }
-}*/
+}
 
 #[derive(Debug)]
 pub struct Tensor<T, const R: usize>
@@ -29,9 +29,6 @@ where
     pub(crate) _shape: [usize; R],
 }
 
-/*
- * RANK-R TENSOR FUNCTIONS
- */
 #[macro_export]
 macro_rules! tensor {
     ([$($shape:expr),*] [ $($elem:expr),* $(,)? ]) => {{
@@ -41,11 +38,17 @@ macro_rules! tensor {
     }};
 }
 
+/*
+ * RANK-R TENSOR FUNCTIONS
+ */
+
 impl<T, const R: usize> Clone for Tensor<T, R>
 where
     T: DeviceCopy + Clone,
 {
     /// Safe because it discards the device pointer.
+    /// Will be removing once when making GPU-local. OR will alternatively allocate it on a new
+    /// pointer.
     fn clone(&self) -> Self {
         Self {
             _device_ptr: None,

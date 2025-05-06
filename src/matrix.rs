@@ -36,8 +36,6 @@ where
         ..
     } = *ctx;
 
-
-
     let dims = Dimensions {
         m1_rows: m1.shape()[0] as u32,
         m1_cols: m1.shape()[1] as u32,
@@ -48,14 +46,7 @@ where
     // Figure out a better solution for this - either a better kernel 
     // OR let type Dimension = (u32, u32, u32), make calc_grid_size return (Dimension, Dimension)
     // and pattern match the shape of the operand to either use this formula (for 2D indexing in
-    // the kernel) or the 1D indexing used for the vector kernels.
-    let bs = (16, 16, 1);
-
-    let gs = (
-        (dims.m2_cols as usize + bs.0 as usize - 1) as u32 / bs.0,
-        (dims.m1_rows as usize + bs.1 as usize - 1) as u32 / bs.1,
-        1
-    );
+    let (bs, gs) = calc_grid_size(&m1, &m2);
 
     unsafe {
         let result = launch!(matrix.matmul_kernel<<<gs, bs, 0, stream>>>(

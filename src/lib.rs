@@ -20,6 +20,8 @@ struct CudaCtx {
     _ctx: Context,
 }
 
+type Dimension = (u32, u32, u32);
+
 lazy_static! {
     pub(crate) static ref CUDA_CTX: Mutex<CudaCtx> = Mutex::new(CudaCtx::default());
 }
@@ -46,14 +48,31 @@ impl Default for CudaCtx {
 
 //pub type Matrix<T> = Tensor<T, 2>;
 
-pub(crate) fn calc_grid_size<T, const R: usize>(t: &Tensor<T, R>) -> (u32, u32)
+pub(crate) fn calc_grid_size<T>(t1: &Tensor<T, 2>, t2: &Tensor<T, 2>) -> (Dimension, Dimension)
 where
     T: DeviceCopy,
 {
-    let block_size = 256; // or 128, 512 based on occupancy tuning
-    let grid_size = (t.inner().len() as u32 + block_size - 1) / block_size;
+    match t1.shape() {
+        [1, _] | [_, 1] => {
 
-    (block_size, grid_size)
+            let bs = 256;
+            let gs = (t1.inner().len() as u32 + bs - 1) / bs;
+            return ((bs, 1, 1), (gs, 1, 1))
+        }
+        _ =>  {
+            let bs = (16, 16, 1);
+
+            let s1 = t1.shape();
+            let s2 = t2.shape();
+            let gs = (
+                (s2[1] as usize + bs.0 as usize - 1) as u32 / bs.0,
+                (s1[0] as usize + bs.1 as usize - 1) as u32 / bs.1,
+                1
+            );
+            (bs, gs)
+
+        }
+    }
 }
 
 #[cfg(test)]

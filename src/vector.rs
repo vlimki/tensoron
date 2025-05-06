@@ -43,7 +43,7 @@ where
         ..
     } = *ctx;
 
-    let (bs, gs) = calc_grid_size(&v1);
+    let (bs, gs) = calc_grid_size(&v1, &v2);
 
     unsafe {
         let result = launch!(vector.add<<<gs, bs, 0, stream>>>(
@@ -84,7 +84,7 @@ where
         ..
     } = *ctx;
 
-    let (bs, gs) = calc_grid_size(&v1);
+    let (bs, gs) = calc_grid_size(&v1, &v2);
 
     unsafe {
         let result = launch!(vector.dot_product<<<gs, bs, 0, stream>>>(
