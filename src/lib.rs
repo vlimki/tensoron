@@ -1,3 +1,6 @@
+#![feature(generic_const_exprs)]
+
+
 use cust::context::Context;
 use crate::matrix::Dimensions;
 use cust::memory::bytemuck::Zeroable;
@@ -24,6 +27,7 @@ struct CudaCtx {
     matrix: Module,
     _ctx: Context,
 }
+
 
 #[derive(Debug, Clone)]
 pub(crate) enum Operation {
@@ -137,7 +141,8 @@ where T: DeviceCopy + Zeroable
             return Tensor {
                 _device_ptr: Some(output),
                 _inner: vec![],
-                _shape: [t1.shape()[0], t2.shape()[1]]
+                _shape: [t1.shape()[0], t2.shape()[1]],
+                _strides: [t2.shape()[1], 1]
             }
         }
         Add => {
@@ -212,6 +217,7 @@ mod tests {
 
         let m3 = (m1.clone() * m2.clone()).to_host();
         assert_eq!(m3, tensor!([2, 2][10.0, 13.0, 22.0, 29.0]));
+        assert_eq!(m3.at([0, 1]).value(), 13.0);
 
         let m4 = (m1 + m2).to_host();
         println!("{:#?}", m4);

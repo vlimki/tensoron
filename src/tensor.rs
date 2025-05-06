@@ -1,5 +1,5 @@
 use crate::{execute_operation, matrix, vector, Operation};
-use std::ops::{Add, Mul};
+use std::ops::{Add, Index, Mul};
 
 use bytemuck::Zeroable;
 use cust::memory::*;
@@ -27,6 +27,7 @@ where
     pub(crate) _device_ptr: Option<DeviceBuffer<T>>,
     pub(crate) _inner: Vec<T>,
     pub(crate) _shape: [usize; R],
+    pub(crate) _strides: [usize; R],
 }
 
 #[macro_export]
@@ -41,7 +42,6 @@ macro_rules! tensor {
 /*
  * RANK-R TENSOR FUNCTIONS
  */
-
 impl<T, const R: usize> Clone for Tensor<T, R>
 where
     T: DeviceCopy + Clone,
@@ -54,6 +54,7 @@ where
             _device_ptr: None,
             _inner: self._inner.clone(),
             _shape: self._shape.clone(),
+            _strides: self._strides.clone()
         }
     }
 }
@@ -106,6 +107,58 @@ where
         }
     }
 
+    pub fn slice<const N: usize>(&self, index: [usize; N]) -> Tensor<T, R>
+        where T: DeviceCopy, [(); R - N]: {
+        let offset = Iterator::zip(index.iter(), self._strides.iter()).map(|(a, b)| a * b).sum();
+
+        let mut new_shape = self._shape;
+
+        let new_strides = self._strides;
+
+        for i in 0..N {
+            new_shape[i] = 1;
+        }
+
+        let len: usize = new_shape.iter().product();
+        let data = &self.inner()[offset..offset + len];
+
+        Tensor {
+            _device_ptr: None,
+            _inner: data.to_vec(),
+            _shape: new_shape,
+            _strides: new_strides,
+        }
+    }
+
+    pub fn at<const N: usize>(&self, index: [usize; N]) -> Tensor<T, {R - N}>
+        where T: DeviceCopy, [(); R - N]: {
+        let offset = Iterator::zip(index.iter(), self._strides.iter()).map(|(a, b)| a * b).sum();
+
+        let new_shape = {
+            let mut s = [0; R - N];
+            s.copy_from_slice(&self._shape[N..]);
+            s
+        };
+
+        let new_strides = {
+            let mut s = [0; R - N];
+            s.copy_from_slice(&self._shape[N..]);
+            s
+        };
+
+        let len: usize = new_shape.iter().product();
+        let data = &self.inner()[offset..offset + len];
+
+        Tensor {
+            _device_ptr: None,
+            _inner: data.to_vec(),
+            _shape: new_shape,
+            _strides: new_strides,
+        }
+    }
+
+
+
     pub fn to_host(mut self) -> Self {
         if let Some(ref ptr) = self._device_ptr {
             let mut host_out = vec![T::zeroed(); self.shape()[0] * self.shape()[1]];
@@ -123,10 +176,19 @@ where
     T: DeviceCopy,
 {
     fn from(value: ([usize; R], Vec<T>)) -> Self {
+        let mut strides = [0; R];
+
+        strides[R - 1] = 1;
+
+        for i in (0..R - 1).rev() {
+            strides[i] = strides[i + 1] * value.0[i + 1];
+        }
+
         Self {
             _device_ptr: None,
             _shape: value.0,
             _inner: value.1,
+            _strides: strides
         }
     }
 }
