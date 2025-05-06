@@ -33,7 +33,8 @@ assert_eq!(m3.at([0, 1]).value(), 13.0);
     - [ ] Do every operation on the GPU
     - [x] Redesign the `execute_operation` function to be more flexible and to support GPU locality (it's ugly right now)
 - [ ] Transposition operator
-- [ ] Stride-aware kernels
+- [ ] Tensor views
+    - [ ] Stride-aware kernels
 
 - [x] Compile CUDA at build-time (build.rs)
     - [ ] Support other types besides f32 by replacing float* with whatever type is needed in the CUDA code (build.rs)
