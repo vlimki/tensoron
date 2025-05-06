@@ -43,9 +43,6 @@ where
         m2_cols: m2.shape()[1] as u32
     };
 
-    // Figure out a better solution for this - either a better kernel 
-    // OR let type Dimension = (u32, u32, u32), make calc_grid_size return (Dimension, Dimension)
-    // and pattern match the shape of the operand to either use this formula (for 2D indexing in
     let (bs, gs) = calc_grid_size(&m1, &m2);
 
     unsafe {
