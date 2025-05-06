@@ -129,7 +129,7 @@ where T: DeviceCopy + Zeroable
             unsafe {
                 launch!(matrix.matmul_kernel<<<gs, bs, 0, stream>>>(
                     t1.device_ptr().as_ref().unwrap().as_device_ptr(),
-                    t1.device_ptr().as_ref().unwrap().as_device_ptr(),
+                    t2.device_ptr().as_ref().unwrap().as_device_ptr(),
                     c_out.as_device_ptr(),
                     dims
                 )).unwrap()
@@ -221,7 +221,8 @@ mod tests {
         let m2 = tensor!([2, 2][2.0, 3.0, 4.0, 5.0]);
 
         let m3 = m1 * m2;
-        println!("{:#?}", m3)
+        println!("{:#?}", m3);
+        assert_eq!(m3, tensor!([2, 2][10.0, 13.0, 22.0, 29.0]));
     } 
 
     #[test]
