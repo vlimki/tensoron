@@ -1,9 +1,5 @@
-use crate::{execute_operation, matrix, vector, Operation};
-use std::ops::{Add, Index, Mul};
-
 use bytemuck::Zeroable;
 use cust::memory::*;
-//use std::ops::Mul;
 
 pub type Scalar<T> = Tensor<T, 0>;
 
@@ -39,9 +35,6 @@ macro_rules! tensor {
     }};
 }
 
-/*
- * RANK-R TENSOR FUNCTIONS
- */
 impl<T, const R: usize> Clone for Tensor<T, R>
 where
     T: DeviceCopy + Clone,
@@ -68,14 +61,6 @@ where
     }
 }
 
-impl<T> Tensor<T, 2>
-where
-    T: DeviceCopy + Mul<Output = T> + Zeroable
-{
-    pub fn scale(self, value: T) -> Self {
-        execute_operation(self, tensor!([1,1][value]), Operation::Scale)
-    }
-}
 impl<T: DeviceCopy, const R: usize> Tensor<T, R> {
     pub fn shape(&self) -> [usize; R] {
         self._shape
@@ -157,8 +142,6 @@ where
         }
     }
 
-
-
     pub fn to_host(mut self) -> Self {
         if let Some(ref ptr) = self._device_ptr {
             let mut host_out = vec![T::zeroed(); self.shape()[0] * self.shape()[1]];
@@ -202,37 +185,3 @@ where
     }
 }
 
-/*
- * RANK-2 TENSOR FUNCTIONS
- */
-impl<T> Tensor<T, 2>
-where
-    T: DeviceCopy,
-{
-    pub fn transpose(self) -> Self {
-        let s = self.shape();
-        match s {
-            _ => unimplemented!(),
-        }
-    }
-}
-
-impl<T> Mul for Tensor<T, 2>
-where
-    T: DeviceCopy + Zeroable,
-{
-    type Output = Self;
-    fn mul(self, rhs: Self) -> Self::Output {
-        execute_operation(self, rhs, Operation::Mul)
-    }
-}
-
-impl<T> Add for Tensor<T, 2>
-where
-    T: DeviceCopy + Zeroable,
-{
-    type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output {
-        execute_operation(self, rhs, Operation::Add)
-    }
-}

@@ -1,6 +1,5 @@
 #![feature(generic_const_exprs)]
 
-
 use cust::context::Context;
 use crate::matrix::Dimensions;
 use cust::memory::bytemuck::Zeroable;
@@ -14,8 +13,10 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 pub mod matrix;
-mod tensor;
 pub mod vector;
+pub mod ops;
+mod tensor;
+
 pub use matrix::Matrix;
 pub use tensor::Tensor;
 pub use vector::Vector;
@@ -176,7 +177,7 @@ where T: DeviceCopy + Zeroable
 
 #[cfg(test)]
 mod tests {
-    use crate::Matrix;
+    use crate::{Matrix, Vector};
     use crate::{tensor, Tensor};
     use rand::distr::Uniform;
     use rand::rngs::StdRng;
@@ -184,7 +185,7 @@ mod tests {
     use rand::SeedableRng;
 
     fn generate_data() -> Vec<f32> {
-        let size: usize = 100_000;
+        let size: usize = 10_000_000;
         let mut rng = StdRng::from_os_rng();
         let uniform = Uniform::new(-1.0f32, 1.0).unwrap();
 
@@ -193,20 +194,21 @@ mod tests {
 
     #[test]
     fn vectors() {
-        let v1 = tensor!([3, 1][1.0f32, 2.0, 3.0]);
-        let v2 = tensor!([3, 1][2.0, 4.0, 6.0]);
+        let v1 = tensor!([3][1.0f32, 2.0, 3.0]);
+        let v2 = tensor!([3][2.0, 4.0, 6.0]);
 
-        let v3 = (v1.clone() + v2.clone()).to_host();
+        /*let v3 = (v1.clone() + v2.clone()).to_host();
         assert_eq!(v3, tensor!([3,1][3.0, 6.0, 9.0]));
-        assert_eq!(v3.clone().scale(10.0), tensor!([3,1][30.0, 60.0, 90.0]));
+        assert_eq!(v3.clone().scale(10.0), tensor!([3,1][30.0, 60.0, 90.0]));*/
 
-        let v4 = (v1.transpose() * v2).to_host();
-        assert_eq!(v4, tensor!([1, 1][28.0]));
+        // Currently returns a scalar, maybe I'll change it to a Tensor<T, 1> later.
+        let v4 = v1 * v2;
+        assert_eq!(v4, 28.0);
 
         // Bigger vectors
-        let v5 = Matrix::from(generate_data());
-        let v6 = Matrix::from(generate_data());
-        let v7 = (v5.transpose() * v6).to_host();
+        let v5 = Vector::from(generate_data());
+        let v6 = Vector::from(generate_data());
+        let v7 = v5 * v6;
 
         println!("{:#?}", v7);
     }

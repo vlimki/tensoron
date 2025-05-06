@@ -1,5 +1,7 @@
-use crate::tensor::Tensor;
-use cust::memory::*;
+use std::ops::{Add, Mul};
+
+use crate::{execute_operation, tensor, Tensor, Operation};
+use cust::memory::{bytemuck::Zeroable, *};
 
 pub type Matrix<T> = Tensor<T, 2>;
 
@@ -13,7 +15,7 @@ pub(crate) struct Dimensions {
 }
 
 impl Dimensions {
-    pub fn from_shapes<T: DeviceCopy>(t1: &Tensor<T, 2>, t2: &Tensor<T, 2>) -> Self {
+    pub fn from_shapes<T: DeviceCopy>(t1: &Matrix<T>, t2: &Matrix<T>) -> Self {
         return Self {
             m1_rows: t1.shape()[0] as u32,
             m1_cols: t1.shape()[1] as u32,
@@ -31,12 +33,43 @@ impl<T: DeviceCopy> From<Vec<T>> for Matrix<T> {
 
 
 // Impl later
-/*
-pub(crate) fn transpose<T>(mut v1: Matrix<T>) -> Matrix<T>
+impl<T> Matrix<T>
 where
     T: DeviceCopy,
 {
-    let s = v1.shape();
-    v1._shape = [s[1], s[0]];
-    v1
-}*/
+    pub fn transpose(self) -> Self {
+        let s = self.shape();
+        match s {
+            _ => unimplemented!(),
+        }
+    }
+}
+
+impl<T> Mul for Matrix<T>
+where
+    T: DeviceCopy + Zeroable,
+{
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self::Output {
+        execute_operation(self, rhs, Operation::Mul)
+    }
+}
+
+impl<T> Add for Matrix<T>
+where
+    T: DeviceCopy + Zeroable,
+{
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        execute_operation(self, rhs, Operation::Add)
+    }
+}
+
+impl<T> Matrix<T>
+where
+    T: DeviceCopy + Mul<Output = T> + Zeroable
+{
+    pub fn scale(self, value: T) -> Self {
+        execute_operation(self, tensor!([1,1][value]), Operation::Scale)
+    }
+}
