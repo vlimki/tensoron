@@ -20,6 +20,7 @@ pub use vector::Vector;
 struct CudaCtx {
     stream: Stream,
     vector: Module,
+    tensor: Module,
     matrix: Module,
     _ctx: Context,
 }
@@ -29,6 +30,7 @@ pub(crate) enum Operation {
     VecAdd,
     MatMul,
     MatAdd,
+    Scale,
 }
 
 type Dimension = (u32, u32, u32);
@@ -50,14 +52,19 @@ impl Default for CudaCtx {
 
         let ptx_vector = CString::new(load_ptx("vector.ptx")).unwrap();
         let module_vector = Module::from_ptx_cstr(&ptx_vector, &[]).unwrap();
+
         let ptx_matrix = CString::new(load_ptx("matrix.ptx")).unwrap();
         let module_matrix = Module::from_ptx_cstr(&ptx_matrix, &[]).unwrap();
+
+        let ptx_tensor = CString::new(load_ptx("tensor.ptx")).unwrap();
+        let module_tensor = Module::from_ptx_cstr(&ptx_tensor, &[]).unwrap();
 
         let stream = Stream::new(StreamFlags::NON_BLOCKING, None).unwrap();
 
         Self {
             vector: module_vector,
             matrix: module_matrix,
+            tensor: module_tensor,
             stream,
             _ctx: context,
         }
@@ -68,8 +75,8 @@ pub(crate) fn calc_grid_size<T>(t1: &Tensor<T, 2>, t2: &Tensor<T, 2>) -> (Dimens
 where
     T: DeviceCopy,
 {
-    match t1.shape() {
-        [1, _] | [_, 1] => {
+    match t2.shape() {
+        [1, 1] | [1, _] | [_, 1] => {
 
             let bs = 256;
             let gs = (t1.inner().len() as u32 + bs - 1) / bs;
@@ -116,6 +123,7 @@ where T: DeviceCopy + Zeroable
             assert_eq!(t1.shape()[0], t2.shape()[1]);
             1
         }
+        Scale => t1.shape()[0] * t1.shape()[1]
     };
 
     let ctx = CUDA_CTX.lock().unwrap();
@@ -123,16 +131,17 @@ where T: DeviceCopy + Zeroable
     t1.to_device();
     t2.to_device();
 
-    let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(sz_new).unwrap();
     let CudaCtx {
         ref matrix,
         ref vector,
+        ref tensor,
         ref stream,
         ..
     } = *ctx;
 
-    match op {
+    let output = match op {
         MatMul => {
+            let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(sz_new).unwrap();
             let (bs, gs) = calc_grid_size(&t1, &t2);
             let dims = Dimensions {
                 m1_rows: t1.shape()[0] as u32,
@@ -148,8 +157,12 @@ where T: DeviceCopy + Zeroable
                     dims
                 )).unwrap()
             }
+            let mut host_out = vec![T::zeroed(); sz_new];
+            c_out.copy_to(&mut host_out[..]).unwrap();
+            host_out
         }
         MatAdd => {
+            let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(sz_new).unwrap();
             let (bs, gs) = calc_grid_size(&t1, &t2);
             let dims = Dimensions {
                 m1_rows: t1.shape()[0] as u32,
@@ -166,8 +179,12 @@ where T: DeviceCopy + Zeroable
                     dims
                 )).unwrap()
             }
+            let mut host_out = vec![T::zeroed(); sz_new];
+            c_out.copy_to(&mut host_out[..]).unwrap();
+            host_out
         }
         VecMul => {
+            let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(sz_new).unwrap();
             let (bs, gs) = calc_grid_size(&t1, &t2);
             let len = t1.shape()[0].max(t1.shape()[1]);
 
@@ -179,8 +196,12 @@ where T: DeviceCopy + Zeroable
                     len as std::os::raw::c_int,
                 )).unwrap()
             }
+            let mut host_out = vec![T::zeroed(); sz_new];
+            c_out.copy_to(&mut host_out[..]).unwrap();
+            host_out
         }
         VecAdd => {
+            let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(sz_new).unwrap();
             let len = t1.shape()[0].max(t1.shape()[1]);
             let (bs, gs) = calc_grid_size(&t1, &t2);
 
@@ -192,12 +213,29 @@ where T: DeviceCopy + Zeroable
                     len as std::os::raw::c_int,
                 )).unwrap()
             }
-
+            let mut host_out = vec![T::zeroed(); sz_new];
+            c_out.copy_to(&mut host_out[..]).unwrap();
+            host_out
         }
-    }
+        Scale => {
+            let (bs, gs) = calc_grid_size(&t1, &t2);
+            let c_out: DeviceBuffer<T> = DeviceBuffer::zeroed(sz_new).unwrap();
 
-    let mut host_out = vec![T::zeroed(); sz_new];
-    c_out.copy_to(&mut host_out[..]).unwrap();
+            unsafe {
+                launch!(tensor.scale<<<gs, bs, 0, stream>>>(
+                    t1.device_ptr().as_ref().unwrap().as_device_ptr(),
+                    t2.inner()[0],
+                    c_out.as_device_ptr(),
+                    sz_new as std::os::raw::c_int,
+                )).unwrap()
+            }
+
+            let mut host_out = vec![T::zeroed(); sz_new];
+            c_out.copy_to(&mut host_out[..]).unwrap();
+            host_out
+        }
+    };
+
 
     ctx.stream.synchronize().unwrap();
     
@@ -205,10 +243,11 @@ where T: DeviceCopy + Zeroable
         MatMul => [t1.shape()[0], t2.shape()[1]],
         VecAdd => t1.shape(),
         MatAdd => t1.shape(),
-        VecMul => [1, 1]
+        VecMul => [1, 1],
+        Scale => t1.shape()
     };
 
-    return Tensor::from((shape, host_out));
+    return Tensor::from((shape, output));
 }
 
 #[cfg(test)]
@@ -237,6 +276,7 @@ mod tests {
         let v4 = v1 * v2.transpose();
 
         assert_eq!(v3, tensor!([3,1][3.0, 6.0, 9.0]));
+        println!("{:#?}", v3.clone().scale(10.0));
         assert_eq!(v3.scale(10.0), tensor!([3,1][30.0, 60.0, 90.0]));
         assert_eq!(v4, tensor!([1, 1][28.0]));
 

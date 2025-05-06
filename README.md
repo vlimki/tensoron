@@ -22,7 +22,7 @@ assert_eq!(v4, tensor!([1, 1][28.0]));
 - [ ] Make the library GPU-local
     - [ ] Treat device pointers as authoritative data; don't discard them
     - [ ] Do every operation on the GPU
-- [ ] Compile CUDA at build-time (build.rs)
+- [x] Compile CUDA at build-time (build.rs)
     - [ ] Support other types besides f32 by replacing float* with whatever type is needed in the CUDA code (build.rs)
 
 - [x] Basic vector operations: multiply by scalar, dot product, etc.

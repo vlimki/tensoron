@@ -67,12 +67,12 @@ where
     }
 }
 
-impl<T, const R: usize> Tensor<T, R>
+impl<T> Tensor<T, 2>
 where
-    T: DeviceCopy + Mul<Output = T>,
+    T: DeviceCopy + Mul<Output = T> + Zeroable
 {
-    pub fn scale(&self, value: T) -> Self {
-        self.map(|x| *x * value)
+    pub fn scale(self, value: T) -> Self {
+        execute_operation(self, tensor!([1,1][value]), Operation::Scale)
     }
 }
 
