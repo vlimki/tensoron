@@ -103,12 +103,12 @@ mod tests {
     use rand::Rng;
     use rand::SeedableRng;
 
-    fn generate_data() -> Vec<f32> {
+    fn generate_data() -> Vec<f64> {
         let size: usize = 10_000_000;
         let mut rng = StdRng::from_os_rng();
         let uniform = Uniform::new(-1.0f32, 1.0).unwrap();
 
-        (0..size).map(|_| rng.sample(&uniform)).collect()
+        (0..size).map(|_| rng.sample(&uniform) as f64).collect()
     }
 
     #[test]
@@ -125,8 +125,10 @@ mod tests {
         assert_eq!(v4, 28.0);
 
         // Bigger vectors
-        let v5 = Vector::from(generate_data());
-        let v6 = Vector::from(generate_data());
+        // The library also has support for multiple number types (currently just f64 and f32)
+        // It will compile a CUDA kernel for each type the user is using.
+        let v5: Vector<f64> = Vector::from(generate_data());
+        let v6: Vector<f64> = Vector::from(generate_data());
         let v7 = v5 * v6;
 
         println!("{:#?}", v7);

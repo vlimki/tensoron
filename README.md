@@ -1,5 +1,9 @@
 # tensoron - CUDA-Accelerated Linear Algebra in Rust
 
+### Features
+- **Support for multiple number types**: the library will dynamically compile a CUDA kernel at build time for each type the user is using in their code.
+- **GPU locality**
+
 ### Example
 ```rust
 // Vectors (Vector<T>)
