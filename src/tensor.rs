@@ -157,6 +157,44 @@ impl<T: DeviceCopy + Zeroable + 'static, const R: usize> GpuScale<T> for Tensor<
     }
 }
 
+fn call_ml_function<T, const R: usize>(getter: &'static str, mut t: Tensor<T, R>) -> Tensor<T, R>
+where T: DeviceCopy + Zeroable + 'static {
+    let ctx = CUDA_CTX.lock().unwrap();
+
+    t.gpu();
+
+    let len: usize = t.shape().iter().product();
+    let bs = 256;
+    let gs = (t.shape()[0] as u32 + bs - 1) / bs;
+
+    let CudaCtx { ref tensor, ref stream, .. } = *ctx;
+
+    let tp = get_cuda_type::<T>();
+    let f = tensor.get_function(format!("{}_{}", getter, tp)).unwrap();
+
+    unsafe {
+        launch!(f<<<gs, bs, 0, stream>>>(
+            t.device_ptr().as_ref().unwrap().as_device_ptr(),
+            len as i32,
+        )).unwrap()
+    }
+
+    t
+}
+
+impl<T: DeviceCopy + Zeroable + 'static, const R: usize> ML<T> for Tensor<T, R> {
+    fn relu(self) -> Self {
+        call_ml_function("relu", self)
+    }
+    fn tanh(self) -> Self {
+        call_ml_function("tanh", self)
+    }
+
+    fn sigmoid(self) -> Self {
+        call_ml_function("sigmoid", self)
+    }
+}
+
 impl<T, const R: usize> Tensor<T, R>
 where
     T: DeviceCopy + Zeroable + 'static

@@ -96,7 +96,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::Vector;
+    use crate::{ops::ML, Vector};
     use crate::{tensor, Tensor};
     use rand::distr::Uniform;
     use rand::rngs::StdRng;
@@ -118,7 +118,9 @@ mod tests {
 
         let v3 = (v1.clone() + v2.clone()).cpu();
         assert_eq!(v3, tensor!([3][3.0, 6.0, 9.0]));
-        assert_eq!(v3.clone().scale(10.0).cpu(), tensor!([3][30.0, 60.0, 90.0]));
+
+        // Chain operations + ML functions like tanh, relu, sigmoid
+        assert_eq!(v3.clone().scale(10.0).tanh().cpu(), tensor!([3][30.0, 60.0, 90.0]).tanh().cpu());
 
         // Currently returns a scalar, maybe I'll change it to a Tensor<T, 1> later.
         let v4 = v1 * v2;

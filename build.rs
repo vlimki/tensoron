@@ -1,4 +1,4 @@
-use std::{env, fs::{self, write, OpenOptions}, io::Write, process::Command};
+use std::{env, fs::{self, OpenOptions}, io::Write, process::Command};
 
 fn compile_ptx(src: &str, out: &str) -> Result<(), Box<dyn std::error::Error>> {
     let status = Command::new("nvcc")
