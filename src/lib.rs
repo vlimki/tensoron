@@ -51,7 +51,7 @@ pub(crate) fn get_cuda_type<T: DeviceCopy + 'static>() -> &'static str {
         return "double";
     }
 
-    return "_f32";
+    panic!("Calling CUDA operations with unsupported types. Supported types: f32, f64");
 }
 
 impl Default for CudaCtx {
