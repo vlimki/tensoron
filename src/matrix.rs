@@ -1,7 +1,10 @@
 use std::ops::Mul;
 
 use crate::{calc_grid_size, get_cuda_type, ops::GpuMul, CudaCtx, Tensor, CUDA_CTX};
-use cust::{launch, memory::{bytemuck::Zeroable, *}};
+use cust::{
+    launch,
+    memory::{bytemuck::Zeroable, *},
+};
 
 pub type Matrix<T> = Tensor<T, 2>;
 
@@ -20,8 +23,8 @@ impl Dimensions {
             m1_rows: t1.shape()[0] as u32,
             m1_cols: t1.shape()[1] as u32,
             m2_rows: t2.shape()[0] as u32,
-            m2_cols: t2.shape()[1] as u32
-        }
+            m2_cols: t2.shape()[1] as u32,
+        };
     }
 }
 
@@ -31,7 +34,9 @@ impl<T: DeviceCopy> From<Vec<T>> for Matrix<T> {
     }
 }
 impl<T> GpuMul for Matrix<T>
-where T: DeviceCopy + Zeroable + 'static {
+where
+    T: DeviceCopy + Zeroable + 'static,
+{
     type Output = Self;
     fn gpu_mul(mut self, mut rhs: Self) -> Self::Output {
         let ctx = CUDA_CTX.lock().unwrap();
@@ -45,7 +50,8 @@ where T: DeviceCopy + Zeroable + 'static {
             ..
         } = *ctx;
 
-        let output: DeviceBuffer<T> = DeviceBuffer::zeroed(self.shape()[0] * rhs.shape()[1]).unwrap();
+        let output: DeviceBuffer<T> =
+            DeviceBuffer::zeroed(self.shape()[0] * rhs.shape()[1]).unwrap();
         let dims = Dimensions::from_shapes(&self, &rhs);
         let (bs, gs) = calc_grid_size(&self, &rhs);
 
@@ -58,14 +64,15 @@ where T: DeviceCopy + Zeroable + 'static {
                 rhs.device_ptr().as_ref().unwrap().as_device_ptr(),
                 output.as_device_ptr(),
                 dims
-            )).unwrap()
+            ))
+            .unwrap()
         }
         return Tensor {
             _device_ptr: Some(output),
             _inner: vec![],
             _shape: [self.shape()[0], rhs.shape()[1]],
-            _strides: [rhs.shape()[1], 1]
-        }
+            _strides: [rhs.shape()[1], 1],
+        };
     }
 }
 

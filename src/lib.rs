@@ -1,3 +1,4 @@
+#![allow(internal_features, incomplete_features)]
 #![feature(generic_const_exprs, core_intrinsics)]
 
 use cust::context::Context;
@@ -7,14 +8,14 @@ use cust::stream::*;
 use lazy_static::lazy_static;
 use std::any::TypeId;
 use std::ffi::CString;
-use std::{env, fs};
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::{env, fs};
 
 pub mod matrix;
-pub mod vector;
 pub mod ops;
 mod tensor;
+pub mod vector;
 
 pub use matrix::Matrix;
 pub use tensor::Tensor;
@@ -50,7 +51,7 @@ pub(crate) fn get_cuda_type<T: DeviceCopy + 'static>() -> &'static str {
         return "double";
     }
 
-    return "_f32"
+    return "_f32";
 }
 
 impl Default for CudaCtx {
@@ -89,7 +90,7 @@ where
     let gs = (
         (s2[1] as usize + bs.0 as usize - 1) as u32 / bs.0,
         (s1[0] as usize + bs.1 as usize - 1) as u32 / bs.1,
-        1
+        1,
     );
     (bs, gs)
 }
@@ -120,7 +121,10 @@ mod tests {
         assert_eq!(v3, tensor!([3][3.0, 6.0, 9.0]));
 
         // Chain operations + ML functions like tanh, relu, sigmoid
-        assert_eq!(v3.clone().scale(10.0).tanh().cpu(), tensor!([3][30.0, 60.0, 90.0]).tanh().cpu());
+        assert_eq!(
+            v3.clone().scale(10.0).tanh().cpu(),
+            tensor!([3][30.0, 60.0, 90.0]).tanh().cpu()
+        );
 
         // Currently returns a scalar, maybe I'll change it to a Tensor<T, 1> later.
         let v4 = v1 * v2;
@@ -148,7 +152,7 @@ mod tests {
         let m4 = (m1 + m2).cpu();
         println!("{:#?}", m4);
         assert_eq!(m4, tensor!([2, 2][3.0, 5.0, 7.0, 9.0]));
-    } 
+    }
 
     #[test]
     #[should_panic]

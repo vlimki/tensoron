@@ -4,8 +4,8 @@ use cust::launch;
 use cust::memory::bytemuck::Zeroable;
 use cust::memory::{CopyDestination, DeviceBuffer, DeviceCopy};
 
-use crate::{get_cuda_type, CudaCtx, Tensor, CUDA_CTX};
 use crate::ops::*;
+use crate::{get_cuda_type, CudaCtx, Tensor, CUDA_CTX};
 
 pub type Vector<T> = Tensor<T, 1>;
 
@@ -23,7 +23,11 @@ impl<T: DeviceCopy + Zeroable + 'static> GpuMul for Vector<T> {
         let gs = (self.shape()[0] as u32 + bs - 1) / bs;
 
         let output: DeviceBuffer<T> = DeviceBuffer::zeroed(1).unwrap();
-        let CudaCtx { ref vector, ref stream, .. } = *ctx;
+        let CudaCtx {
+            ref vector,
+            ref stream,
+            ..
+        } = *ctx;
 
         let t = get_cuda_type::<T>();
         let f = vector.get_function(format!("mul_{}", t)).unwrap();
@@ -34,7 +38,8 @@ impl<T: DeviceCopy + Zeroable + 'static> GpuMul for Vector<T> {
                 rhs.device_ptr().as_ref().unwrap().as_device_ptr(),
                 output.as_device_ptr(),
                 len,
-            )).unwrap()
+            ))
+            .unwrap()
         }
 
         let mut host = vec![T::zeroed(); 1];
@@ -57,4 +62,3 @@ impl<T: DeviceCopy> From<Vec<T>> for Vector<T> {
         Tensor::from(([v.len()], v))
     }
 }
-
