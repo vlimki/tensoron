@@ -4,12 +4,12 @@ use cust::launch;
 use cust::memory::bytemuck::Zeroable;
 use cust::memory::{CopyDestination, DeviceBuffer, DeviceCopy};
 
-use crate::{CudaCtx, Tensor, CUDA_CTX};
+use crate::{get_cuda_type, CudaCtx, Tensor, CUDA_CTX};
 use crate::ops::*;
 
 pub type Vector<T> = Tensor<T, 1>;
 
-impl<T: DeviceCopy + Zeroable> GpuMul for Vector<T> {
+impl<T: DeviceCopy + Zeroable + 'static> GpuMul for Vector<T> {
     type Output = T;
 
     fn gpu_mul(mut self, mut rhs: Self) -> T {
@@ -25,8 +25,8 @@ impl<T: DeviceCopy + Zeroable> GpuMul for Vector<T> {
         let output: DeviceBuffer<T> = DeviceBuffer::zeroed(1).unwrap();
         let CudaCtx { ref vector, ref stream, .. } = *ctx;
 
-        let t = get_cuda_type<T>();
-        let f = vector.get_function(format!("mul_{}", t));
+        let t = get_cuda_type::<T>();
+        let f = vector.get_function(format!("mul_{}", t)).unwrap();
 
         unsafe {
             launch!(f<<<gs, bs, 0, stream>>>(
@@ -44,7 +44,7 @@ impl<T: DeviceCopy + Zeroable> GpuMul for Vector<T> {
     }
 }
 
-impl<T: DeviceCopy + Zeroable> Mul for Vector<T> {
+impl<T: DeviceCopy + Zeroable + 'static> Mul for Vector<T> {
     type Output = T;
 
     fn mul(self, rhs: Self) -> Self::Output {

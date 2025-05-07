@@ -8,6 +8,7 @@ fn compile_ptx(src: &str, out: &str) -> Result<(), Box<dyn std::error::Error>> {
             "-o",
             out,
             "--use_fast_math",
+            "-arch=sm_70",
         ])
         .status()?;
 
@@ -40,11 +41,10 @@ fn main() {
 
     for kernel in ["vector", "matrix", "tensor"] {
         let src = format!("kernels/{kernel}.cu");
-        let dst = format!("kernels/{kernel}.ptx");
+        let dst = format!("{out_dir}/{kernel}.ptx");
         let mut replaced: Vec<String> = vec![];
 
         let contents = fs::read_to_string(&src).expect("Failed to read file");
-        println!("{}", contents);
         let content = contents.split("// KERNELS").collect::<Vec<&str>>()[1];
 
         for t in enabled_types() {

@@ -7,7 +7,6 @@ use cust::stream::*;
 use lazy_static::lazy_static;
 use std::any::TypeId;
 use std::ffi::CString;
-use std::intrinsics::type_id;
 use std::{env, fs};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -44,11 +43,11 @@ fn load_ptx(src: &str) -> String {
 pub(crate) fn get_cuda_type<T: DeviceCopy + 'static>() -> &'static str {
     let t = TypeId::of::<T>();
     if t == TypeId::of::<f32>() {
-        return "_float";
+        return "float";
     }
 
     if t == TypeId::of::<f64>() {
-        return "_double";
+        return "double";
     }
 
     return "_f32"

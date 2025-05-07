@@ -1,6 +1,6 @@
 use std::ops::Mul;
 
-use crate::{calc_grid_size, ops::GpuMul, CudaCtx, Tensor, CUDA_CTX};
+use crate::{calc_grid_size, get_cuda_type, ops::GpuMul, CudaCtx, Tensor, CUDA_CTX};
 use cust::{launch, memory::{bytemuck::Zeroable, *}};
 
 pub type Matrix<T> = Tensor<T, 2>;
@@ -31,7 +31,7 @@ impl<T: DeviceCopy> From<Vec<T>> for Matrix<T> {
     }
 }
 impl<T> GpuMul for Matrix<T>
-where T: DeviceCopy + Zeroable {
+where T: DeviceCopy + Zeroable + 'static {
     type Output = Self;
     fn gpu_mul(mut self, mut rhs: Self) -> Self::Output {
         let ctx = CUDA_CTX.lock().unwrap();
@@ -49,8 +49,8 @@ where T: DeviceCopy + Zeroable {
         let dims = Dimensions::from_shapes(&self, &rhs);
         let (bs, gs) = calc_grid_size(&self, &rhs);
 
-        let t = get_cuda_type<T>();
-        let f = matrix.get_function(format!("mul_{}", t));
+        let t = get_cuda_type::<T>();
+        let f = matrix.get_function(format!("mul_{}", t)).unwrap();
 
         unsafe {
             launch!(f<<<gs, bs, 0, stream>>>(
@@ -84,7 +84,7 @@ where
 
 impl<T> Mul for Matrix<T>
 where
-    T: DeviceCopy + Zeroable,
+    T: DeviceCopy + Zeroable + 'static,
 {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self::Output {

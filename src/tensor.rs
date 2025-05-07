@@ -84,7 +84,7 @@ impl<T: DeviceCopy, const R: usize> Tensor<T, R> {
     }
 }
 
-impl<T: DeviceCopy + Zeroable, const R: usize> GpuAdd<T> for Tensor<T, R> {
+impl<T: DeviceCopy + Zeroable + 'static, const R: usize> GpuAdd<T> for Tensor<T, R> {
     type Output = Self;
 
     fn gpu_add(mut self, mut rhs: Self) -> Self {
@@ -101,8 +101,8 @@ impl<T: DeviceCopy + Zeroable, const R: usize> GpuAdd<T> for Tensor<T, R> {
 
         let CudaCtx { ref tensor, ref stream, .. } = *ctx;
 
-        let t = get_cuda_type<T>();
-        let add = tensor.get_function(format!("add_{}", t));
+        let t = get_cuda_type::<T>();
+        let f = tensor.get_function(format!("add_{}", t)).unwrap();
 
         unsafe {
             launch!(f<<<gs, bs, 0, stream>>>(
@@ -116,7 +116,7 @@ impl<T: DeviceCopy + Zeroable, const R: usize> GpuAdd<T> for Tensor<T, R> {
     }
 }
 
-impl<T: DeviceCopy + Zeroable, const R: usize> Add for Tensor<T, R> {
+impl<T: DeviceCopy + Zeroable + 'static, const R: usize> Add for Tensor<T, R> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -124,7 +124,7 @@ impl<T: DeviceCopy + Zeroable, const R: usize> Add for Tensor<T, R> {
     }
 }
 
-impl<T: DeviceCopy + Zeroable, const R: usize> GpuScale<T> for Tensor<T, R> {
+impl<T: DeviceCopy + Zeroable + 'static, const R: usize> GpuScale<T> for Tensor<T, R> {
     type Output = Self;
 
     fn gpu_scale(mut self, rhs: T) -> Self {
@@ -142,8 +142,8 @@ impl<T: DeviceCopy + Zeroable, const R: usize> GpuScale<T> for Tensor<T, R> {
 
         let CudaCtx { ref tensor, ref stream, .. } = *ctx;
 
-        let t = get_cuda_type<T>();
-        let f = tensor.get_function(format!("scale_{}", t));
+        let t = get_cuda_type::<T>();
+        let f = tensor.get_function(format!("scale_{}", t)).unwrap();
 
         unsafe {
             launch!(f<<<gs, bs, 0, stream>>>(
@@ -159,7 +159,7 @@ impl<T: DeviceCopy + Zeroable, const R: usize> GpuScale<T> for Tensor<T, R> {
 
 impl<T, const R: usize> Tensor<T, R>
 where
-    T: DeviceCopy + Zeroable,
+    T: DeviceCopy + Zeroable + 'static
 {
     pub fn gpu(&mut self) {
         if let None = self._device_ptr {
