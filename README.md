@@ -36,9 +36,6 @@ assert_eq!(m3.at([0, 1]).value(), 13.0);
 - [ ] Tensor views
     - [ ] Stride-aware kernels
 
-- [x] Compile CUDA at build-time (build.rs)
-    - [ ] Support other types besides f32 by replacing float* with whatever type is needed in the CUDA code (build.rs)
-
 - [x] Basic vector operations: multiply by scalar, dot product, etc.
 - [x] (!) Dynamically calculate grid sizes; don't just hardcode 3 threads with 1 block
 - [x] `src/matrix.rs` comment, line 48
@@ -48,3 +45,5 @@ assert_eq!(m3.at([0, 1]).value(), 13.0);
 - [x] GPU operation traits: GPUMul, GPUAdd, etc. and then implement them for Tensor<T, 2> and Tensor<T, 1>
     - [x] This way `execute_operation` can be gotten rid of
     - [x] Treat Vector<T> as Tensor<T, 1> exclusively; stop using that name for Tensor<T, 2> altogether
+- [x] Compile CUDA at build-time (build.rs)
+    - [x] Support other types besides f32 by replacing float* with whatever type is needed in the CUDA code (build.rs)
