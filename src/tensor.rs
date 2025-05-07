@@ -3,7 +3,7 @@ use std::ops::Add;
 use bytemuck::Zeroable;
 use cust::{launch, memory::*};
 
-use crate::{ops::*, CudaCtx, CUDA_CTX};
+use crate::{get_cuda_type, ops::*, CudaCtx, CUDA_CTX};
 
 pub type Scalar<T> = Tensor<T, 0>;
 
@@ -101,8 +101,11 @@ impl<T: DeviceCopy + Zeroable, const R: usize> GpuAdd<T> for Tensor<T, R> {
 
         let CudaCtx { ref tensor, ref stream, .. } = *ctx;
 
+        let t = get_cuda_type<T>();
+        let add = tensor.get_function(format!("add_{}", t));
+
         unsafe {
-            launch!(tensor.add<<<gs, bs, 0, stream>>>(
+            launch!(f<<<gs, bs, 0, stream>>>(
                 self.device_ptr().as_ref().unwrap().as_device_ptr(),
                 rhs.device_ptr().as_ref().unwrap().as_device_ptr(),
                 len as i32,
@@ -139,8 +142,11 @@ impl<T: DeviceCopy + Zeroable, const R: usize> GpuScale<T> for Tensor<T, R> {
 
         let CudaCtx { ref tensor, ref stream, .. } = *ctx;
 
+        let t = get_cuda_type<T>();
+        let f = tensor.get_function(format!("scale_{}", t));
+
         unsafe {
-            launch!(tensor.scale<<<gs, bs, 0, stream>>>(
+            launch!(f<<<gs, bs, 0, stream>>>(
                 self.device_ptr().as_ref().unwrap().as_device_ptr(),
                 scalar_tensor.device_ptr().as_ref().unwrap().as_device_ptr(),
                 len as i32,

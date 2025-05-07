@@ -49,8 +49,11 @@ where T: DeviceCopy + Zeroable {
         let dims = Dimensions::from_shapes(&self, &rhs);
         let (bs, gs) = calc_grid_size(&self, &rhs);
 
+        let t = get_cuda_type<T>();
+        let f = matrix.get_function(format!("mul_{}", t));
+
         unsafe {
-            launch!(matrix.mul<<<gs, bs, 0, stream>>>(
+            launch!(f<<<gs, bs, 0, stream>>>(
                 self.device_ptr().as_ref().unwrap().as_device_ptr(),
                 rhs.device_ptr().as_ref().unwrap().as_device_ptr(),
                 output.as_device_ptr(),

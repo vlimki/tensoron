@@ -25,8 +25,11 @@ impl<T: DeviceCopy + Zeroable> GpuMul for Vector<T> {
         let output: DeviceBuffer<T> = DeviceBuffer::zeroed(1).unwrap();
         let CudaCtx { ref vector, ref stream, .. } = *ctx;
 
+        let t = get_cuda_type<T>();
+        let f = vector.get_function(format!("mul_{}", t));
+
         unsafe {
-            launch!(vector.dot_product<<<gs, bs, 0, stream>>>(
+            launch!(f<<<gs, bs, 0, stream>>>(
                 self.device_ptr().as_ref().unwrap().as_device_ptr(),
                 rhs.device_ptr().as_ref().unwrap().as_device_ptr(),
                 output.as_device_ptr(),

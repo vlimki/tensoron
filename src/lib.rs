@@ -44,11 +44,11 @@ fn load_ptx(src: &str) -> String {
 pub(crate) fn get_cuda_type<T: DeviceCopy + 'static>() -> &'static str {
     let t = TypeId::of::<T>();
     if t == TypeId::of::<f32>() {
-        return "_f32";
+        return "_float";
     }
 
     if t == TypeId::of::<f64>() {
-        return "_f64";
+        return "_double";
     }
 
     return "_f32"
