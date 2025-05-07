@@ -1,11 +1,13 @@
-#![feature(generic_const_exprs)]
+#![feature(generic_const_exprs, core_intrinsics)]
 
 use cust::context::Context;
 use cust::memory::DeviceCopy;
 use cust::module::Module;
 use cust::stream::*;
 use lazy_static::lazy_static;
+use std::any::TypeId;
 use std::ffi::CString;
+use std::intrinsics::type_id;
 use std::{env, fs};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -39,6 +41,18 @@ fn load_ptx(src: &str) -> String {
     fs::read_to_string(ptx_path).expect("Failed to read compiled PTX")
 }
 
+pub(crate) fn get_cuda_type<T: DeviceCopy + 'static>() -> &'static str {
+    let t = TypeId::of::<T>();
+    if t == TypeId::of::<f32>() {
+        return "_f32";
+    }
+
+    if t == TypeId::of::<f64>() {
+        return "_f64";
+    }
+
+    return "_f32"
+}
 
 impl Default for CudaCtx {
     fn default() -> Self {

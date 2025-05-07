@@ -9,8 +9,8 @@ struct dimensions_t {
 	uint32_t m2_cols;
 };
 
-// Don't laugh at this kernel lol
-extern "C" __global__ void mul(float* m1, float* m2, float* result, struct dimensions_t dims) {
+// KERNELS
+extern "C" __global__ void mul_float(float* m1, float* m2, float* result, struct dimensions_t dims) {
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 

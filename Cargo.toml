@@ -6,6 +6,11 @@ edition = "2024"
 [lib]
 path = "src/lib.rs"
 
+[features]
+default = ["f32", "f64"]
+f32 = []
+f64 = []
+
 [dependencies]
 cust = "0.3.2"
 lazy_static = "1.5.0"

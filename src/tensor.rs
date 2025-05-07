@@ -256,4 +256,3 @@ where
         self.shape() == other.shape() && self.inner() == other.inner()
     }
 }
-
