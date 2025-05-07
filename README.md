@@ -37,6 +37,7 @@ assert_eq!(m3.at([0, 1]).value(), 13.0);
     - [ ] Do every operation on the GPU
     - [x] Redesign the `execute_operation` function to be more flexible and to support GPU locality (it's ugly right now)
 - [ ] Transposition operator
+- [ ] Change tensor.inner to an Option
 - [ ] Tensor views
     - [ ] Stride-aware kernels
 - [ ] Start using GitHub issues instead of this TODO list lol
