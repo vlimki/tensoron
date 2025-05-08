@@ -18,7 +18,10 @@ impl<T: DeviceCopy> From<T> for Scalar<T> {
 
 impl<T: DeviceCopy> Scalar<T> {
     pub fn value(&self) -> T {
-        self.inner().as_ref().expect("Calling `.value()` on unsynchronized data; call `.cpu()` on the tensor first.")[0]
+        self.inner()
+            .as_ref()
+            .expect("Calling `.value()` on unsynchronized data; call `.cpu()` on the tensor first.")
+            [0]
     }
 }
 
@@ -84,7 +87,13 @@ impl<T: DeviceCopy, const R: usize> Tensor<T, R> {
     }
 
     pub fn map<U: DeviceCopy>(&self, f: impl Fn(&T) -> U) -> Tensor<U, R> {
-        let data = self._inner.as_ref().expect("Calling `map` with unsynchronized data; call `.cpu()` on the tensor first.").iter().map(f).collect::<Vec<_>>();
+        let data = self
+            ._inner
+            .as_ref()
+            .expect("Calling `map` with unsynchronized data; call `.cpu()` on the tensor first.")
+            .iter()
+            .map(f)
+            .collect::<Vec<_>>();
         Tensor::<U, R>::from((self._shape, data))
     }
 }
@@ -224,7 +233,8 @@ where
     pub fn gpu(&mut self) {
         if let None = self._device_ptr {
             // .unwrap() is fine here, since the device_ptr and self._inner cannot both be None
-            self._device_ptr = Some(DeviceBuffer::from_slice(self._inner.as_ref().unwrap()).unwrap());
+            self._device_ptr =
+                Some(DeviceBuffer::from_slice(self._inner.as_ref().unwrap()).unwrap());
             self._inner = None;
         }
     }

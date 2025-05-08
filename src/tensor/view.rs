@@ -6,7 +6,7 @@ use super::Tensor;
 pub struct TensorView<'a, T, const R: usize> {
     pub(crate) _shape: [usize; R],
     pub(crate) _data: &'a [T],
-    pub(crate) _strides: [usize; R]
+    pub(crate) _strides: [usize; R],
 }
 
 impl<'a, T, const R: usize> From<&'a Tensor<T, R>> for TensorView<'a, T, R>
@@ -32,9 +32,8 @@ where
 
 impl<'a, T, const R: usize> TensorView<'a, T, R>
 where
-    T: DeviceCopy
+    T: DeviceCopy,
 {
-
     pub fn at<const N: usize>(&self, index: [usize; N]) -> TensorView<'a, T, { R - N }>
     where
         T: DeviceCopy,
