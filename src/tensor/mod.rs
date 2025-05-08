@@ -18,7 +18,7 @@ impl<T: DeviceCopy> From<T> for Scalar<T> {
 
 impl<T: DeviceCopy> Scalar<T> {
     pub fn value(&self) -> T {
-        self.inner()[0]
+        self.inner().as_ref().expect("Calling `.value()` on unsynchronized data; call `.cpu()` on the tensor first.")[0]
     }
 }
 
@@ -28,7 +28,7 @@ where
     T: DeviceCopy,
 {
     pub(crate) _device_ptr: Option<DeviceBuffer<T>>,
-    pub(crate) _inner: Vec<T>,
+    pub(crate) _inner: Option<Vec<T>>,
     pub(crate) _shape: [usize; R],
 }
 
@@ -75,7 +75,7 @@ impl<T: DeviceCopy, const R: usize> Tensor<T, R> {
         &self._device_ptr
     }
 
-    pub fn inner(&self) -> &Vec<T> {
+    pub fn inner(&self) -> &Option<Vec<T>> {
         &self._inner
     }
 
@@ -84,7 +84,7 @@ impl<T: DeviceCopy, const R: usize> Tensor<T, R> {
     }
 
     pub fn map<U: DeviceCopy>(&self, f: impl Fn(&T) -> U) -> Tensor<U, R> {
-        let data = self._inner.iter().map(f).collect::<Vec<_>>();
+        let data = self._inner.as_ref().expect("Calling `map` with unsynchronized data; call `.cpu()` on the tensor first.").iter().map(f).collect::<Vec<_>>();
         Tensor::<U, R>::from((self._shape, data))
     }
 }
@@ -223,8 +223,9 @@ where
 {
     pub fn gpu(&mut self) {
         if let None = self._device_ptr {
-            self._device_ptr = Some(DeviceBuffer::from_slice(&self._inner).unwrap());
-            self._inner = vec![];
+            // .unwrap() is fine here, since the device_ptr and self._inner cannot both be None
+            self._device_ptr = Some(DeviceBuffer::from_slice(self._inner.as_ref().unwrap()).unwrap());
+            self._inner = None;
         }
     }
 
@@ -236,7 +237,7 @@ where
         if let Some(ref ptr) = self._device_ptr {
             let mut host_out = vec![T::zeroed(); self.shape().iter().product()];
             ptr.copy_to(&mut host_out[..]).unwrap();
-            self._inner = host_out;
+            self._inner = Some(host_out);
         }
         self
     }
@@ -250,7 +251,7 @@ where
         Self {
             _device_ptr: None,
             _shape: value.0,
-            _inner: value.1,
+            _inner: Some(value.1),
         }
     }
 }

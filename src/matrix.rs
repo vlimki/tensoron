@@ -69,7 +69,7 @@ where
         }
         return Tensor {
             _device_ptr: Some(output),
-            _inner: vec![],
+            _inner: None,
             _shape: [self.shape()[0], rhs.shape()[1]],
         };
     }

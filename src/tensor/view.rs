@@ -1,5 +1,3 @@
-use std::ops::Index;
-
 use cust::memory::DeviceCopy;
 
 use super::Tensor;
@@ -26,7 +24,7 @@ where
 
         Self {
             _shape: t.shape(),
-            _data: &t.inner(),
+            _data: t.inner().as_ref().expect("Trying to create a tensor view with unsynchronized data; call `.cpu()` on the tensor first."),
             _strides: strides,
         }
     }

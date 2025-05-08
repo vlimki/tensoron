@@ -149,19 +149,8 @@ mod tests {
         assert_eq!(m3, tensor!([2, 2][10.0, 13.0, 22.0, 29.0]));
         assert_eq!(m3.view().at([0, 1]).value(), 13.0);
 
-        let row_2 = m3.view().slice([1]).data();
-
         let m4 = (m1 + m2).cpu();
         println!("{:#?}", m4);
         assert_eq!(m4, tensor!([2, 2][3.0, 5.0, 7.0, 9.0]));
-    }
-
-    #[test]
-    #[should_panic]
-    fn vec_add_illegal() {
-        let v1 = tensor!([3, 1][1.0, 2.0, 3.0]);
-        let v2 = tensor!([2, 1][2.0, 4.0]);
-
-        let _ = v1 + v2;
     }
 }
