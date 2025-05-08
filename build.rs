@@ -1,23 +1,15 @@
-use std::{env, fs::{self, OpenOptions}, io::Write, process::Command};
+use std::{env, fs::{self, OpenOptions}, io::Write, path::Path, process::Command};
 
 fn compile_ptx(src: &str, out: &str) -> Result<(), Box<dyn std::error::Error>> {
     let status = Command::new("nvcc")
-        .args([
-            "-ptx",
-            src,
-            "-o",
-            out,
-            "--use_fast_math",
-            "-arch=sm_70",
-        ])
+        .args(["-ptx", src, "-o", out, "--use_fast_math", "-arch=sm_70"])
         .status()?;
-
     if !status.success() {
-        return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Not coompiling")));
+        return Err("nvcc failed".into());
     }
-
     Ok(())
 }
+
 
 fn enabled_types() -> Vec<&'static str> {
     let mut types = vec![];
@@ -35,9 +27,8 @@ fn enabled_types() -> Vec<&'static str> {
 
 fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
+    let mut constants = String::new();
 
-    Command::new("mkdir")
-        .arg(format!("{}/out", out_dir)).output().unwrap();
 
     for kernel in ["vector", "matrix", "tensor"] {
         let src = format!("kernels/{kernel}.cu");
@@ -68,7 +59,19 @@ fn main() {
                 panic!("Failed to compile kernels to PTX. Do you have a viable GPU and `nvcc` installed?");
             }
         }
-        println!("cargo:rerun-if-changed=build.rs");
+
+        let ptx = fs::read_to_string(&dst).unwrap();
+
+        constants.push_str(&format!(
+            "pub const {}_PTX: &str = r#\"{}\"#;\n",
+            kernel.to_uppercase(),
+            ptx.replace(r#"""#, r#"\""#)
+        ));
 
     }
+
+    let dest = Path::new(&out_dir).join("kernels.rs");
+    fs::write(dest, constants).unwrap();
+
+    println!("cargo:rerun-if-changed=build.rs");
 }

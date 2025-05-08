@@ -51,7 +51,7 @@ where
 
         let new_strides = {
             let mut s = [0; R - N];
-            s.copy_from_slice(&self._shape[N..]);
+            s.copy_from_slice(&self._strides[N..]);
             s
         };
 
@@ -67,6 +67,11 @@ where
 
     pub fn data(&self) -> &'a [T] {
         self._data
+    }
+
+    pub fn to_tensor(self) -> Tensor<T, R> {
+        // Need to make this stride-aware
+        Tensor::from((self._shape, self._data.to_vec()))
     }
 
     pub fn slice<const N: usize>(&self, index: [usize; N]) -> TensorView<'a, T, R>

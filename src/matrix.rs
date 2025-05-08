@@ -11,19 +11,15 @@ pub type Matrix<T> = Tensor<T, 2>;
 #[repr(C)]
 #[derive(DeviceCopy, Copy, Clone, Debug)]
 pub(crate) struct Dimensions {
-    pub m1_rows: u32,
-    pub m1_cols: u32,
-    pub m2_rows: u32,
-    pub m2_cols: u32,
+    pub rows: u32,
+    pub cols: u32,
 }
 
 impl Dimensions {
-    pub fn from_shapes<T: DeviceCopy>(t1: &Matrix<T>, t2: &Matrix<T>) -> Self {
+    pub fn from_shape<T: DeviceCopy>(t1: &Matrix<T>) -> Self {
         return Self {
-            m1_rows: t1.shape()[0] as u32,
-            m1_cols: t1.shape()[1] as u32,
-            m2_rows: t2.shape()[0] as u32,
-            m2_cols: t2.shape()[1] as u32,
+            rows: t1.shape()[0] as u32,
+            cols: t1.shape()[1] as u32,
         };
     }
 }
@@ -52,7 +48,8 @@ where
 
         let output: DeviceBuffer<T> =
             DeviceBuffer::zeroed(self.shape()[0] * rhs.shape()[1]).unwrap();
-        let dims = Dimensions::from_shapes(&self, &rhs);
+        let dims_self = Dimensions::from_shape(&self);
+        let dims_rhs = Dimensions::from_shape(&rhs);
         let (bs, gs) = calc_grid_size(&self, &rhs);
 
         let t = get_cuda_type::<T>();
@@ -63,7 +60,8 @@ where
                 self.device_ptr().as_ref().unwrap().as_device_ptr(),
                 rhs.device_ptr().as_ref().unwrap().as_device_ptr(),
                 output.as_device_ptr(),
-                dims
+                dims_self,
+                dims_rhs
             ))
             .unwrap()
         }
@@ -75,16 +73,47 @@ where
     }
 }
 
-// Impl later
 impl<T> Matrix<T>
 where
-    T: DeviceCopy,
+    T: DeviceCopy + Zeroable + 'static
 {
-    pub fn transpose(self) -> Self {
-        let s = self.shape();
-        match s {
-            _ => unimplemented!(),
+    pub fn transpose(mut self) -> Self {
+        let ctx = CUDA_CTX.lock().unwrap();
+
+        self.gpu();
+
+        let CudaCtx {
+            ref matrix,
+            ref stream,
+            ..
+        } = *ctx;
+
+        let output: DeviceBuffer<T> =
+            DeviceBuffer::zeroed(self.shape()[0] * self.shape()[1]).unwrap();
+
+        let dims = Dimensions::from_shape(&self);
+
+        let bs = 256;
+        let gs = (self.shape()[0] as u32 + bs - 1) / bs;
+
+
+        let t = get_cuda_type::<T>();
+        let f = matrix.get_function(format!("transpose_{}", t)).unwrap();
+
+        unsafe {
+            launch!(f<<<gs, bs, 0, stream>>>(
+                self.device_ptr().as_ref().unwrap().as_device_ptr(),
+                output.as_device_ptr(),
+                dims,
+            ))
+            .unwrap()
         }
+
+        return Tensor {
+            _device_ptr: Some(output),
+            _inner: None,
+            _shape: [self.shape()[1], self.shape()[0]],
+        };
     }
 }
 

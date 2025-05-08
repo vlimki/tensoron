@@ -13,6 +13,11 @@ pub trait GpuScale<T> {
     fn gpu_scale(self, rhs: T) -> Self::Output;
 }
 
+pub trait GpuTranspose<T> {
+    type Output;
+    fn gpu_transpose(self) -> Self::Output;
+}
+
 pub trait ML<T> {
     fn relu(self) -> Self;
     fn tanh(self) -> Self;

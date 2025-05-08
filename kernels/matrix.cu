@@ -3,24 +3,33 @@
 #include <cuda.h>
 
 struct dimensions_t {
-	uint32_t m1_rows;
-	uint32_t m1_cols;
-	uint32_t m2_rows;
-	uint32_t m2_cols;
+	uint32_t rows;
+	uint32_t cols;
 };
 
 // KERNELS
-extern "C" __global__ void mul_float(float* m1, float* m2, float* result, struct dimensions_t dims) {
+extern "C" __global__ void mul_float(float* m1, float* m2, float* result, struct dimensions_t dims1, struct dimensions_t dims2) {
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 
-	if(col < dims.m2_cols && row < dims.m1_rows) {
+	if(col < dims2.cols && row < dims1.rows) {
 		float sum = 0.0;
 
-		for(int i = 0; i < dims.m1_cols; i++) {
-			sum += m1[row * dims.m1_cols + i] * m2[col + i * dims.m2_cols];
+		for(int i = 0; i < dims1.cols; i++) {
+			sum += m1[row * dims1.cols + i] * m2[col + i * dims2.cols];
 		}
 
-		result[row * dims.m2_cols + col] = sum;
+		result[row * dims2.cols + col] = sum;
+	}
+}
+
+extern "C" __global__ void transpose_float(float* in, float* out, struct dimensions_t dims) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if(idx < dims.rows * dims.cols) {
+		int r = idx / dims.cols;
+		int c = idx % dims.cols;
+
+		out[c * dims.rows + r] = in[r * dims.cols + c];
 	}
 }

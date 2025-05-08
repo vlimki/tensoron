@@ -8,9 +8,12 @@ use cust::stream::*;
 use lazy_static::lazy_static;
 use std::any::TypeId;
 use std::ffi::CString;
-use std::path::PathBuf;
 use std::sync::Mutex;
-use std::{env, fs};
+use std::env;
+
+pub const VECTOR_PTX: &str = include_str!(concat!(env!("OUT_DIR"), "/vector.ptx"));
+pub const MATRIX_PTX: &str = include_str!(concat!(env!("OUT_DIR"), "/matrix.ptx"));
+pub const TENSOR_PTX: &str = include_str!(concat!(env!("OUT_DIR"), "/tensor.ptx"));
 
 pub mod matrix;
 pub mod ops;
@@ -29,16 +32,11 @@ struct CudaCtx {
     _ctx: Context,
 }
 
+
 type Dimension = (u32, u32, u32);
 
 lazy_static! {
     pub(crate) static ref CUDA_CTX: Mutex<CudaCtx> = Mutex::new(CudaCtx::default());
-}
-
-fn load_ptx(src: &str) -> String {
-    let out_dir = env::var("OUT_DIR").unwrap();
-    let ptx_path = PathBuf::from(format!("{}/{}", out_dir, src));
-    fs::read_to_string(ptx_path).expect("Failed to read compiled PTX")
 }
 
 pub(crate) fn get_cuda_type<T: DeviceCopy + 'static>() -> &'static str {
@@ -59,14 +57,9 @@ impl Default for CudaCtx {
     fn default() -> Self {
         let context = cust::quick_init().unwrap();
 
-        let ptx_vector = CString::new(load_ptx("vector.ptx")).unwrap();
-        let module_vector = Module::from_ptx_cstr(&ptx_vector, &[]).unwrap();
-
-        let ptx_matrix = CString::new(load_ptx("matrix.ptx")).unwrap();
-        let module_matrix = Module::from_ptx_cstr(&ptx_matrix, &[]).unwrap();
-
-        let ptx_tensor = CString::new(load_ptx("tensor.ptx")).unwrap();
-        let module_tensor = Module::from_ptx_cstr(&ptx_tensor, &[]).unwrap();
+        let module_vector = Module::from_ptx_cstr(&CString::new(VECTOR_PTX).unwrap(), &[]).unwrap();
+        let module_matrix = Module::from_ptx_cstr(&CString::new(MATRIX_PTX).unwrap(), &[]).unwrap();
+        let module_tensor = Module::from_ptx_cstr(&CString::new(TENSOR_PTX).unwrap(), &[]).unwrap();
 
         let stream = Stream::new(StreamFlags::NON_BLOCKING, None).unwrap();
 
@@ -142,6 +135,8 @@ mod tests {
 
     #[test]
     fn matrices() {
+        let f = concat!(env!("OUT_DIR"), "/kernels.rs");
+        println!("{}", f);
         let m1 = tensor!([2, 2][1.0f32, 2.0, 3.0, 4.0]);
         let m2 = tensor!([2, 2][2.0, 3.0, 4.0, 5.0]);
 
@@ -150,7 +145,7 @@ mod tests {
         assert_eq!(m3.view().at([0, 1]).value(), 13.0);
 
         let m4 = (m1 + m2).cpu();
-        println!("{:#?}", m4);
-        assert_eq!(m4, tensor!([2, 2][3.0, 5.0, 7.0, 9.0]));
+        println!("{:#?}", m4.clone().transpose().cpu());
+        assert_eq!(m4.transpose().cpu(), tensor!([2, 2][3.0, 7.0, 5.0, 9.0]));
     }
 }
