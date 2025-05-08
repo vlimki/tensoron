@@ -1,6 +1,6 @@
 pub trait GpuAdd<Rhs = Self> {
     type Output;
-    fn gpu_add(self, rhs: Self) -> Self::Output;
+    fn gpu_add(&self, rhs: &Self) -> Self::Output;
 }
 
 pub trait GpuMul<Rhs = Self> {

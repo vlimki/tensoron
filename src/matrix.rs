@@ -1,4 +1,4 @@
-use std::ops::Mul;
+use std::{ops::Mul, sync::Arc};
 
 use crate::{calc_grid_size, get_cuda_type, ops::GpuMul, CudaCtx, Tensor, CUDA_CTX};
 use cust::{
@@ -29,16 +29,17 @@ impl<T: DeviceCopy> From<Vec<T>> for Matrix<T> {
         Tensor::from(([v.len(), 1], v))
     }
 }
-impl<T> GpuMul for Matrix<T>
+impl<T> GpuMul for &Matrix<T>
 where
     T: DeviceCopy + Zeroable + 'static,
 {
-    type Output = Self;
-    fn gpu_mul(mut self, mut rhs: Self) -> Self::Output {
+    type Output = Matrix<T>;
+    fn gpu_mul(self, rhs: Self) -> Self::Output {
         let ctx = CUDA_CTX.lock().unwrap();
 
-        self.gpu();
-        rhs.gpu();
+        let a_dev = self._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(self.inner().as_ref().unwrap()).unwrap()));
+        let b_dev = rhs._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(rhs.inner().as_ref().unwrap()).unwrap()));
+
 
         let CudaCtx {
             ref matrix,
@@ -48,6 +49,7 @@ where
 
         let output: DeviceBuffer<T> =
             DeviceBuffer::zeroed(self.shape()[0] * rhs.shape()[1]).unwrap();
+
         let dims_self = Dimensions::from_shape(&self);
         let dims_rhs = Dimensions::from_shape(&rhs);
         let (bs, gs) = calc_grid_size(&self, &rhs);
@@ -57,8 +59,8 @@ where
 
         unsafe {
             launch!(f<<<gs, bs, 0, stream>>>(
-                self.device_ptr().as_ref().unwrap().as_device_ptr(),
-                rhs.device_ptr().as_ref().unwrap().as_device_ptr(),
+                a_dev.as_device_ptr(),
+                b_dev.as_device_ptr(),
                 output.as_device_ptr(),
                 dims_self,
                 dims_rhs
@@ -66,7 +68,7 @@ where
             .unwrap()
         }
         return Tensor {
-            _device_ptr: Some(output),
+            _device_ptr: Some(Arc::new(output)),
             _inner: None,
             _shape: [self.shape()[0], rhs.shape()[1]],
         };
@@ -110,10 +112,20 @@ where
         }
 
         return Tensor {
-            _device_ptr: Some(output),
+            _device_ptr: Some(Arc::new(output)),
             _inner: None,
             _shape: [self.shape()[1], self.shape()[0]],
         };
+    }
+}
+
+impl<'a, 'b, T> Mul<&'b Matrix<T>> for &'a Matrix<T>
+where
+    T: DeviceCopy + Zeroable + 'static,
+{
+    type Output = Matrix<T>;
+    fn mul(self, rhs: &'b Matrix<T>) -> Self::Output {
+        self.gpu_mul(rhs)
     }
 }
 
@@ -121,8 +133,8 @@ impl<T> Mul for Matrix<T>
 where
     T: DeviceCopy + Zeroable + 'static,
 {
-    type Output = Self;
-    fn mul(self, rhs: Self) -> Self::Output {
-        self.gpu_mul(rhs)
+    type Output = Matrix<T>;
+    fn mul(self, rhs: Matrix<T>) -> Self::Output {
+        self.gpu_mul(&rhs)
     }
 }

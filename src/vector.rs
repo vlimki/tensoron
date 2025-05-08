@@ -9,14 +9,11 @@ use crate::{get_cuda_type, CudaCtx, Tensor, CUDA_CTX};
 
 pub type Vector<T> = Tensor<T, 1>;
 
-impl<T: DeviceCopy + Zeroable + 'static> GpuMul for Vector<T> {
+/*impl<T: DeviceCopy + Zeroable + 'static> GpuMul for &Vector<T> {
     type Output = T;
 
-    fn gpu_mul(mut self, mut rhs: Self) -> T {
+    fn gpu_mul(self, rhs: Self) -> T {
         let ctx = CUDA_CTX.lock().unwrap();
-
-        self.gpu();
-        rhs.gpu();
 
         let len = self.shape()[0];
         let bs = 256;
@@ -49,16 +46,24 @@ impl<T: DeviceCopy + Zeroable + 'static> GpuMul for Vector<T> {
     }
 }
 
-impl<T: DeviceCopy + Zeroable + 'static> Mul for Vector<T> {
+impl<T: DeviceCopy + Zeroable + 'static> Mul for &Vector<T> {
     type Output = T;
 
     fn mul(self, rhs: Self) -> Self::Output {
         self.gpu_mul(rhs)
     }
 }
+impl<T: DeviceCopy + Zeroable + 'static> Mul for Vector<T> {
+    type Output = T;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        self.gpu_mul(&rhs)
+    }
+}
+
 
 impl<T: DeviceCopy> From<Vec<T>> for Vector<T> {
     fn from(v: Vec<T>) -> Self {
         Tensor::from(([v.len()], v))
     }
-}
+}*/

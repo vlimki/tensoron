@@ -1,4 +1,5 @@
 use std::{fmt::Debug, ops::Add};
+use std::sync::Arc;
 
 use bytemuck::Zeroable;
 use cust::{launch, memory::*};
@@ -29,7 +30,7 @@ pub struct Tensor<T, const R: usize>
 where
     T: DeviceCopy,
 {
-    pub(crate) _device_ptr: Option<DeviceBuffer<T>>,
+    pub(crate) _device_ptr: Option<Arc<DeviceBuffer<T>>>,
     pub(crate) _inner: Option<Vec<T>>,
     pub(crate) _shape: [usize; R],
 }
@@ -58,7 +59,7 @@ where
     /// pointer.
     fn clone(&self) -> Self {
         Self {
-            _device_ptr: None,
+            _device_ptr: self._device_ptr.clone(),
             _inner: self._inner.clone(),
             _shape: self._shape.clone(),
         }
@@ -79,7 +80,7 @@ impl<T: DeviceCopy, const R: usize> Tensor<T, R> {
         self._shape
     }
 
-    pub(crate) fn device_ptr(&self) -> &Option<DeviceBuffer<T>> {
+    pub(crate) fn device_ptr(&self) -> &Option<Arc<DeviceBuffer<T>>> {
         &self._device_ptr
     }
 
@@ -104,14 +105,17 @@ impl<T: DeviceCopy, const R: usize> Tensor<T, R> {
 }
 
 impl<T: DeviceCopy + Zeroable + 'static, const R: usize> GpuAdd<T> for Tensor<T, R> {
-    type Output = Self;
+    type Output = Tensor<T, R>;
 
-    fn gpu_add(mut self, mut rhs: Self) -> Self {
+    fn gpu_add(&self, rhs: &Self) -> Tensor<T, R> {
         assert_eq!(self.shape(), rhs.shape());
         let ctx = CUDA_CTX.lock().unwrap();
 
-        self.gpu();
-        rhs.gpu();
+        let output: DeviceBuffer<T> =
+            DeviceBuffer::zeroed(self.shape()[0] * self.shape()[1]).unwrap();
+
+        let a_dev = self._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(self.inner().as_ref().unwrap()).unwrap()));
+        let b_dev = rhs._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(rhs.inner().as_ref().unwrap()).unwrap()));
 
         // Make a proper grid calc function eventually
         let len: usize = self.shape().iter().product();
@@ -129,24 +133,38 @@ impl<T: DeviceCopy + Zeroable + 'static, const R: usize> GpuAdd<T> for Tensor<T,
 
         unsafe {
             launch!(f<<<gs, bs, 0, stream>>>(
-                self.device_ptr().as_ref().unwrap().as_device_ptr(),
-                rhs.device_ptr().as_ref().unwrap().as_device_ptr(),
+                a_dev.as_device_ptr(),
+                b_dev.as_device_ptr(),
+                output.as_device_ptr(),
                 len as i32,
             ))
             .unwrap()
         }
 
-        self
+        return Tensor {
+            _device_ptr: Some(Arc::new(output)),
+            _inner: None,
+            _shape: self.shape()
+        }
     }
 }
 
-impl<T: DeviceCopy + Zeroable + 'static, const R: usize> Add for Tensor<T, R> {
-    type Output = Self;
+impl<T: DeviceCopy + Zeroable + 'static, const R: usize> Add for &Tensor<T, R> {
+    type Output = Tensor<T, R>;
 
     fn add(self, rhs: Self) -> Self::Output {
         self.gpu_add(rhs)
     }
 }
+
+impl<T: DeviceCopy + Zeroable + 'static, const R: usize> Add for Tensor<T, R> {
+    type Output = Tensor<T, R>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        self.gpu_add(&rhs)
+    }
+}
+
 
 impl<T: DeviceCopy + Zeroable + 'static, const R: usize> GpuScale<T> for Tensor<T, R> {
     type Output = Self;
@@ -239,7 +257,7 @@ where
         if let None = self._device_ptr {
             // .unwrap() is fine here, since the device_ptr and self._inner cannot both be None
             self._device_ptr =
-                Some(DeviceBuffer::from_slice(self._inner.as_ref().unwrap()).unwrap());
+                Some(Arc::new(DeviceBuffer::from_slice(self._inner.as_ref().unwrap()).unwrap()));
             self._inner = None;
         }
     }
@@ -253,6 +271,8 @@ where
             let mut host_out = vec![T::zeroed(); self.shape().iter().product()];
             ptr.copy_to(&mut host_out[..]).unwrap();
             self._inner = Some(host_out);
+        } else {
+            panic!("Calling .cpu() with no device ptr");
         }
         self
     }

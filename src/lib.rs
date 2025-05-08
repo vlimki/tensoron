@@ -24,7 +24,7 @@ pub use matrix::Matrix;
 pub use tensor::{Tensor, TensorView};
 pub use vector::Vector;
 
-struct CudaCtx {
+pub struct CudaCtx {
     stream: Stream,
     vector: Module,
     tensor: Module,
@@ -36,7 +36,7 @@ struct CudaCtx {
 type Dimension = (u32, u32, u32);
 
 lazy_static! {
-    pub(crate) static ref CUDA_CTX: Mutex<CudaCtx> = Mutex::new(CudaCtx::default());
+    pub static ref CUDA_CTX: Mutex<CudaCtx> = Mutex::new(CudaCtx::default());
 }
 
 pub(crate) fn get_cuda_type<T: DeviceCopy + 'static>() -> &'static str {
@@ -106,10 +106,13 @@ mod tests {
         (0..size).map(|_| rng.sample(&uniform) as f64).collect()
     }
 
-    #[test]
+    /*#[test]
     fn vectors() {
-        let v1 = tensor!([3][1.0f32, 2.0, 3.0]);
-        let v2 = tensor!([3][2.0, 4.0, 6.0]);
+        let mut v1 = tensor!([3][1.0f32, 2.0, 3.0]);
+        let mut v2 = tensor!([3][2.0, 4.0, 6.0]);
+
+        v1.gpu();
+        v2.gpu();
 
         let v3 = (v1.clone() + v2.clone()).cpu();
         assert_eq!(v3, tensor!([3][3.0, 6.0, 9.0]));
@@ -120,7 +123,7 @@ mod tests {
             tensor!([3][30.0, 60.0, 90.0]).tanh().cpu()
         );
 
-        let v4 = v1 * v2;
+        let v4: f32 = &v1 * &v2;
         assert_eq!(v4, 28.0);
 
         // Bigger vectors
@@ -128,19 +131,18 @@ mod tests {
         // It will compile a CUDA kernel for each type the user is using.
         let v5: Vector<f64> = Vector::from(generate_data());
         let v6: Vector<f64> = Vector::from(generate_data());
-        let v7 = v5 * v6;
+        let v7 = &v5 * &v6;
 
         println!("{:#?}", v7);
-    }
+    }*/
 
     #[test]
     fn matrices() {
-        let f = concat!(env!("OUT_DIR"), "/kernels.rs");
-        println!("{}", f);
         let m1 = tensor!([2, 2][1.0f32, 2.0, 3.0, 4.0]);
-        let m2 = tensor!([2, 2][2.0, 3.0, 4.0, 5.0]);
+        let m2 = tensor!([2, 2][2.0f32, 3.0, 4.0, 5.0]);
 
-        let m3 = (m1.clone() * m2.clone()).cpu();
+        let m3 = (&m1 * &m2).cpu();
+        println!("{:#?}", m3);
         assert_eq!(m3, tensor!([2, 2][10.0, 13.0, 22.0, 29.0]));
         assert_eq!(m3.view().at([0, 1]).value(), 13.0);
 

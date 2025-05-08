@@ -15,11 +15,11 @@ extern "C" __global__ void scale_float(float* a, float* b, int n) {
     }
 }
 
-extern "C" __global__ void add_float(float* m1, float* m2, int n) {
+extern "C" __global__ void add_float(float* m1, float* m2, float* output, int n) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if(idx < n) {
-		m1[idx] = m1[idx] + m2[idx];
+		output[idx] = m1[idx] + m2[idx];
 	}
 }
 
