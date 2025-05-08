@@ -71,7 +71,6 @@ where
             _device_ptr: Some(output),
             _inner: vec![],
             _shape: [self.shape()[0], rhs.shape()[1]],
-            _strides: [rhs.shape()[1], 1],
         };
     }
 }

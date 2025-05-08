@@ -3,6 +3,9 @@ use std::ops::Add;
 use bytemuck::Zeroable;
 use cust::{launch, memory::*};
 
+mod view;
+pub use view::TensorView;
+
 use crate::{get_cuda_type, ops::*, CudaCtx, CUDA_CTX};
 
 pub type Scalar<T> = Tensor<T, 0>;
@@ -27,7 +30,6 @@ where
     pub(crate) _device_ptr: Option<DeviceBuffer<T>>,
     pub(crate) _inner: Vec<T>,
     pub(crate) _shape: [usize; R],
-    pub(crate) _strides: [usize; R],
 }
 
 #[macro_export]
@@ -51,7 +53,6 @@ where
             _device_ptr: None,
             _inner: self._inner.clone(),
             _shape: self._shape.clone(),
-            _strides: self._strides.clone(),
         }
     }
 }
@@ -70,12 +71,16 @@ impl<T: DeviceCopy, const R: usize> Tensor<T, R> {
         self._shape
     }
 
-    pub fn device_ptr(&self) -> &Option<DeviceBuffer<T>> {
+    pub(crate) fn device_ptr(&self) -> &Option<DeviceBuffer<T>> {
         &self._device_ptr
     }
 
-    pub(crate) fn inner(&self) -> &Vec<T> {
+    pub fn inner(&self) -> &Vec<T> {
         &self._inner
+    }
+
+    pub fn view<'a>(&'a self) -> TensorView<'a, T, R> {
+        TensorView::from(self)
     }
 
     pub fn map<U: DeviceCopy>(&self, f: impl Fn(&T) -> U) -> Tensor<U, R> {
@@ -223,68 +228,8 @@ where
         }
     }
 
-    pub fn slice<const N: usize>(&self, index: [usize; N]) -> Tensor<T, R>
-    where
-        T: DeviceCopy,
-        [(); R - N]:,
-    {
-        let offset = Iterator::zip(index.iter(), self._strides.iter())
-            .map(|(a, b)| a * b)
-            .sum();
-
-        let mut new_shape = self._shape;
-
-        let new_strides = self._strides;
-
-        for i in 0..N {
-            new_shape[i] = 1;
-        }
-
-        let len: usize = new_shape.iter().product();
-        let data = &self.inner()[offset..offset + len];
-
-        Tensor {
-            _device_ptr: None,
-            _inner: data.to_vec(),
-            _shape: new_shape,
-            _strides: new_strides,
-        }
-    }
-
     pub fn scale(self, rhs: T) -> Self {
         self.gpu_scale(rhs)
-    }
-
-    pub fn at<const N: usize>(&self, index: [usize; N]) -> Tensor<T, { R - N }>
-    where
-        T: DeviceCopy,
-        [(); R - N]:,
-    {
-        let offset = Iterator::zip(index.iter(), self._strides.iter())
-            .map(|(a, b)| a * b)
-            .sum();
-
-        let new_shape = {
-            let mut s = [0; R - N];
-            s.copy_from_slice(&self._shape[N..]);
-            s
-        };
-
-        let new_strides = {
-            let mut s = [0; R - N];
-            s.copy_from_slice(&self._shape[N..]);
-            s
-        };
-
-        let len: usize = new_shape.iter().product();
-        let data = &self.inner()[offset..offset + len];
-
-        Tensor {
-            _device_ptr: None,
-            _inner: data.to_vec(),
-            _shape: new_shape,
-            _strides: new_strides,
-        }
     }
 
     pub fn cpu(mut self) -> Self {
@@ -302,19 +247,10 @@ where
     T: DeviceCopy,
 {
     fn from(value: ([usize; R], Vec<T>)) -> Self {
-        let mut strides = [0; R];
-
-        strides[R - 1] = 1;
-
-        for i in (0..R - 1).rev() {
-            strides[i] = strides[i + 1] * value.0[i + 1];
-        }
-
         Self {
             _device_ptr: None,
             _shape: value.0,
             _inner: value.1,
-            _strides: strides,
         }
     }
 }

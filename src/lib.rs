@@ -18,7 +18,7 @@ mod tensor;
 pub mod vector;
 
 pub use matrix::Matrix;
-pub use tensor::Tensor;
+pub use tensor::{Tensor, TensorView};
 pub use vector::Vector;
 
 struct CudaCtx {
@@ -43,6 +43,7 @@ fn load_ptx(src: &str) -> String {
 
 pub(crate) fn get_cuda_type<T: DeviceCopy + 'static>() -> &'static str {
     let t = TypeId::of::<T>();
+    
     if t == TypeId::of::<f32>() {
         return "float";
     }
@@ -126,7 +127,6 @@ mod tests {
             tensor!([3][30.0, 60.0, 90.0]).tanh().cpu()
         );
 
-        // Currently returns a scalar, maybe I'll change it to a Tensor<T, 1> later.
         let v4 = v1 * v2;
         assert_eq!(v4, 28.0);
 
@@ -147,7 +147,9 @@ mod tests {
 
         let m3 = (m1.clone() * m2.clone()).cpu();
         assert_eq!(m3, tensor!([2, 2][10.0, 13.0, 22.0, 29.0]));
-        assert_eq!(m3.at([0, 1]).value(), 13.0);
+        assert_eq!(m3.view().at([0, 1]).value(), 13.0);
+
+        let row_2 = m3.view().slice([1]).data();
 
         let m4 = (m1 + m2).cpu();
         println!("{:#?}", m4);
