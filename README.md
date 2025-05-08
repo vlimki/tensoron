@@ -1,4 +1,6 @@
-# tensoron - CUDA-Accelerated Linear Algebra in Rust
+# tensoron - CUDA-Accelerated Tensor Computation with Rust
+
+- [Development log](https://vlimki.dev/writing/tensoron)
 
 ### Features
 - **Support for multiple number types**: the library will dynamically compile a CUDA kernel at build time for each type the user is using in their code.
