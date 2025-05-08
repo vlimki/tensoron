@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::{fmt::Debug, ops::Add};
 
 use bytemuck::Zeroable;
 use cust::{launch, memory::*};
@@ -25,7 +25,6 @@ impl<T: DeviceCopy> Scalar<T> {
     }
 }
 
-#[derive(Debug)]
 pub struct Tensor<T, const R: usize>
 where
     T: DeviceCopy,
@@ -33,6 +32,12 @@ where
     pub(crate) _device_ptr: Option<DeviceBuffer<T>>,
     pub(crate) _inner: Option<Vec<T>>,
     pub(crate) _shape: [usize; R],
+}
+
+impl<T: DeviceCopy + Debug, const R: usize> Debug for Tensor<T, R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}{:?}", self._shape, self.inner().as_ref().expect("Trying to print out a tensor with unsynchronized data; call .cpu() on the tensor first."))
+    }
 }
 
 #[macro_export]
