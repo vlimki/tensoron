@@ -106,15 +106,12 @@ mod tests {
         (0..size).map(|_| rng.sample(&uniform) as f64).collect()
     }
 
-    /*#[test]
+    #[test]
     fn vectors() {
-        let mut v1 = tensor!([3][1.0f32, 2.0, 3.0]);
-        let mut v2 = tensor!([3][2.0, 4.0, 6.0]);
+        let v1 = tensor!([3][1.0f32, 2.0, 3.0]);
+        let v2 = tensor!([3][2.0, 4.0, 6.0]);
 
-        v1.gpu();
-        v2.gpu();
-
-        let v3 = (v1.clone() + v2.clone()).cpu();
+        let v3 = (&v1 + &v2).cpu();
         assert_eq!(v3, tensor!([3][3.0, 6.0, 9.0]));
 
         // Chain operations + ML functions like tanh, relu, sigmoid
@@ -123,7 +120,7 @@ mod tests {
             tensor!([3][30.0, 60.0, 90.0]).tanh().cpu()
         );
 
-        let v4: f32 = &v1 * &v2;
+        let v4: f32 = v1 * v2;
         assert_eq!(v4, 28.0);
 
         // Bigger vectors
@@ -131,10 +128,10 @@ mod tests {
         // It will compile a CUDA kernel for each type the user is using.
         let v5: Vector<f64> = Vector::from(generate_data());
         let v6: Vector<f64> = Vector::from(generate_data());
-        let v7 = &v5 * &v6;
+        let v7 = v5 * v6;
 
         println!("{:#?}", v7);
-    }*/
+    }
 
     #[test]
     fn matrices() {

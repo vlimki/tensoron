@@ -29,6 +29,7 @@ impl<T: DeviceCopy> From<Vec<T>> for Matrix<T> {
         Tensor::from(([v.len(), 1], v))
     }
 }
+
 impl<T> GpuMul for &Matrix<T>
 where
     T: DeviceCopy + Zeroable + 'static,
@@ -39,7 +40,6 @@ where
 
         let a_dev = self._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(self.inner().as_ref().unwrap()).unwrap()));
         let b_dev = rhs._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(rhs.inner().as_ref().unwrap()).unwrap()));
-
 
         let CudaCtx {
             ref matrix,
@@ -79,10 +79,10 @@ impl<T> Matrix<T>
 where
     T: DeviceCopy + Zeroable + 'static
 {
-    pub fn transpose(mut self) -> Self {
+    pub fn transpose(&self) -> Self {
         let ctx = CUDA_CTX.lock().unwrap();
 
-        self.gpu();
+        let a_dev = self._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(self.inner().as_ref().unwrap()).unwrap()));
 
         let CudaCtx {
             ref matrix,
@@ -104,7 +104,7 @@ where
 
         unsafe {
             launch!(f<<<gs, bs, 0, stream>>>(
-                self.device_ptr().as_ref().unwrap().as_device_ptr(),
+                a_dev.as_device_ptr(),
                 output.as_device_ptr(),
                 dims,
             ))

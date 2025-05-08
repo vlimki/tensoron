@@ -7,7 +7,7 @@ edition = "2024"
 path = "src/lib.rs"
 
 [features]
-default = ["f32"]
+default = ["f32", "f64"]
 f32 = []
 f64 = []
 

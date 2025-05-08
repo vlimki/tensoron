@@ -1,4 +1,5 @@
 use std::ops::Mul;
+use std::sync::Arc;
 
 use cust::launch;
 use cust::memory::bytemuck::Zeroable;
@@ -9,17 +10,21 @@ use crate::{get_cuda_type, CudaCtx, Tensor, CUDA_CTX};
 
 pub type Vector<T> = Tensor<T, 1>;
 
-/*impl<T: DeviceCopy + Zeroable + 'static> GpuMul for &Vector<T> {
+impl<T: DeviceCopy + Zeroable + 'static> GpuMul for &Vector<T> {
     type Output = T;
 
     fn gpu_mul(self, rhs: Self) -> T {
         let ctx = CUDA_CTX.lock().unwrap();
+
+        let a_dev = self._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(self.inner().as_ref().unwrap()).unwrap()));
+        let b_dev = rhs._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(rhs.inner().as_ref().unwrap()).unwrap()));
 
         let len = self.shape()[0];
         let bs = 256;
         let gs = (self.shape()[0] as u32 + bs - 1) / bs;
 
         let output: DeviceBuffer<T> = DeviceBuffer::zeroed(1).unwrap();
+
         let CudaCtx {
             ref vector,
             ref stream,
@@ -31,8 +36,8 @@ pub type Vector<T> = Tensor<T, 1>;
 
         unsafe {
             launch!(f<<<gs, bs, 0, stream>>>(
-                self.device_ptr().as_ref().unwrap().as_device_ptr(),
-                rhs.device_ptr().as_ref().unwrap().as_device_ptr(),
+                a_dev.as_device_ptr(),
+                b_dev.as_device_ptr(),
                 output.as_device_ptr(),
                 len,
             ))
@@ -66,4 +71,4 @@ impl<T: DeviceCopy> From<Vec<T>> for Vector<T> {
     fn from(v: Vec<T>) -> Self {
         Tensor::from(([v.len()], v))
     }
-}*/
+}

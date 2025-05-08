@@ -112,7 +112,7 @@ impl<T: DeviceCopy + Zeroable + 'static, const R: usize> GpuAdd<T> for Tensor<T,
         let ctx = CUDA_CTX.lock().unwrap();
 
         let output: DeviceBuffer<T> =
-            DeviceBuffer::zeroed(self.shape()[0] * self.shape()[1]).unwrap();
+            DeviceBuffer::zeroed(self.shape().iter().product()).unwrap();
 
         let a_dev = self._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(self.inner().as_ref().unwrap()).unwrap()));
         let b_dev = rhs._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(rhs.inner().as_ref().unwrap()).unwrap()));
