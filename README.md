@@ -34,12 +34,13 @@ assert_eq!(m3.at([0, 1]).value(), 13.0);
 ### Todo
 - [ ] (!) Actually learn CUDA and write good kernels
     - [ ] Not just good kernels, but also hyper-optimize the crap out of them
+- [ ] Transposition operator
+- [ ] Tensor views
+    - [ ] Proper indexing
+    - [ ] Constructing tensors from tensor views
+- [ ] Start using GitHub issues instead of this TODO list lol
+- [x] Change tensor.inner to an Option
 - [x] Make the library GPU-local
     - Treat device pointers as authoritative data; don't discard them.
-    - [ ] Do every operation on the GPU
+    - [x] Do every operation on the GPU
     - [x] Redesign the `execute_operation` function to be more flexible and to support GPU locality (it's ugly right now)
-- [ ] Transposition operator
-- [ ] Change tensor.inner to an Option
-- [ ] Tensor views
-    - [ ] Stride-aware kernels
-- [ ] Start using GitHub issues instead of this TODO list lol
