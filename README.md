@@ -38,7 +38,7 @@ assert_eq!(m3.at([0, 1]).value(), 13.0);
     - [ ] Proper indexing
     - [ ] Make strides actually do something
     - [ ] Constructing tensors from tensor views
-- [ ] Nicer API around calling kernels
+- [x] Nicer API around calling kernels
 - [ ] Start using GitHub issues instead of this TODO list lol
 - [x] Change tensor.inner to an Option
 - [x] Make the library GPU-local
