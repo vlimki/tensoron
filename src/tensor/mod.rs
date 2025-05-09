@@ -1,3 +1,4 @@
+use std::ops::Sub;
 use std::{fmt::Debug, ops::Add};
 use std::sync::Arc;
 
@@ -101,10 +102,10 @@ impl<T: DeviceCopy, const R: usize> Tensor<T, R> {
     }
 }
 
-impl<T: DeviceCopy + Zeroable + 'static, const R: usize> GpuAdd<T> for Tensor<T, R> {
+impl<T: DeviceCopy + Zeroable + 'static, const R: usize> GpuAdd<T> for &Tensor<T, R> {
     type Output = Tensor<T, R>;
 
-    fn gpu_add(&self, rhs: &Self) -> Tensor<T, R> {
+    fn gpu_add(self, rhs: Self) -> Tensor<T, R> {
         assert_eq!(self.shape(), rhs.shape());
         let ctx = CUDA_CTX.lock().unwrap();
 
@@ -144,6 +145,88 @@ impl<T: DeviceCopy + Zeroable + 'static, const R: usize> GpuAdd<T> for Tensor<T,
             _shape: self.shape()
         }
     }
+
+    fn gpu_sub(self, rhs: Self) -> Tensor<T, R> {
+        assert_eq!(self.shape(), rhs.shape());
+        let ctx = CUDA_CTX.lock().unwrap();
+
+        let output: DeviceBuffer<T> =
+            DeviceBuffer::zeroed(self.shape().iter().product()).unwrap();
+
+        let a_dev = self._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(self.inner().as_ref().unwrap()).unwrap()));
+        let b_dev = rhs._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(rhs.inner().as_ref().unwrap()).unwrap()));
+
+        // Make a proper grid calc function eventually
+        let len: usize = self.shape().iter().product();
+        let bs = 256;
+        let gs = (self.shape()[0] as u32 + bs - 1) / bs;
+
+        let CudaCtx {
+            ref tensor,
+            ref stream,
+            ..
+        } = *ctx;
+
+        let t = get_cuda_type::<T>();
+        let f = tensor.get_function(format!("sub_{}", t)).unwrap();
+
+        unsafe {
+            launch!(f<<<gs, bs, 0, stream>>>(
+                a_dev.as_device_ptr(),
+                b_dev.as_device_ptr(),
+                output.as_device_ptr(),
+                len as i32,
+            ))
+            .unwrap()
+        }
+
+        return Tensor {
+            _device_ptr: Some(Arc::new(output)),
+            _inner: None,
+            _shape: self.shape()
+        }
+    }
+
+    fn gpu_cmul(self, rhs: Self) -> Tensor<T, R> {
+        assert_eq!(self.shape(), rhs.shape());
+        let ctx = CUDA_CTX.lock().unwrap();
+
+        let output: DeviceBuffer<T> =
+            DeviceBuffer::zeroed(self.shape().iter().product()).unwrap();
+
+        let a_dev = self._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(self.inner().as_ref().unwrap()).unwrap()));
+        let b_dev = rhs._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(rhs.inner().as_ref().unwrap()).unwrap()));
+
+        // Make a proper grid calc function eventually
+        let len: usize = self.shape().iter().product();
+        let bs = 256;
+        let gs = (self.shape()[0] as u32 + bs - 1) / bs;
+
+        let CudaCtx {
+            ref tensor,
+            ref stream,
+            ..
+        } = *ctx;
+
+        let t = get_cuda_type::<T>();
+        let f = tensor.get_function(format!("cmul_{}", t)).unwrap();
+
+        unsafe {
+            launch!(f<<<gs, bs, 0, stream>>>(
+                a_dev.as_device_ptr(),
+                b_dev.as_device_ptr(),
+                output.as_device_ptr(),
+                len as i32,
+            ))
+            .unwrap()
+        }
+
+        return Tensor {
+            _device_ptr: Some(Arc::new(output)),
+            _inner: None,
+            _shape: self.shape()
+        }
+    }
 }
 
 impl<T: DeviceCopy + Zeroable + 'static, const R: usize> Add for &Tensor<T, R> {
@@ -159,6 +242,22 @@ impl<T: DeviceCopy + Zeroable + 'static, const R: usize> Add for Tensor<T, R> {
 
     fn add(self, rhs: Self) -> Self::Output {
         self.gpu_add(&rhs)
+    }
+}
+
+impl<T: DeviceCopy + Zeroable + 'static, const R: usize> Sub for &Tensor<T, R> {
+    type Output = Tensor<T, R>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.gpu_sub(rhs)
+    }
+}
+
+impl<T: DeviceCopy + Zeroable + 'static, const R: usize> Sub for Tensor<T, R> {
+    type Output = Tensor<T, R>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.gpu_sub(&rhs)
     }
 }
 
@@ -201,13 +300,16 @@ impl<T: DeviceCopy + Zeroable + 'static, const R: usize> GpuScale<T> for Tensor<
     }
 }
 
-fn call_ml_function<T, const R: usize>(getter: &'static str, mut t: Tensor<T, R>) -> Tensor<T, R>
+fn call_ml_function<T, const R: usize>(getter: &'static str, t: &Tensor<T, R>) -> Tensor<T, R>
 where
     T: DeviceCopy + Zeroable + 'static,
 {
     let ctx = CUDA_CTX.lock().unwrap();
 
-    t.gpu();
+    let output: DeviceBuffer<T> =
+        DeviceBuffer::zeroed(t.shape().iter().product()).unwrap();
+
+    let a_dev = t._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(t.inner().as_ref().unwrap()).unwrap()));
 
     let len: usize = t.shape().iter().product();
     let bs = 256;
@@ -224,25 +326,35 @@ where
 
     unsafe {
         launch!(f<<<gs, bs, 0, stream>>>(
-            t.device_ptr().as_ref().unwrap().as_device_ptr(),
+            a_dev.as_device_ptr(),
+            output.as_device_ptr(),
             len as i32,
         ))
         .unwrap()
     }
 
-    t
+    return Tensor {
+        _device_ptr: Some(Arc::new(output)),
+        _inner: None,
+        _shape: t.shape()
+    }
 }
 
-impl<T: DeviceCopy + Zeroable + 'static, const R: usize> ML<T> for Tensor<T, R> {
-    fn relu(self) -> Self {
+impl<T: DeviceCopy + Zeroable + 'static, const R: usize> ML<T> for &Tensor<T, R> {
+    type Output = Tensor<T, R>;
+    fn relu(self) -> Tensor<T, R> {
         call_ml_function("relu", self)
     }
-    fn tanh(self) -> Self {
+    fn tanh(self) -> Tensor<T, R> {
         call_ml_function("tanh", self)
     }
 
-    fn sigmoid(self) -> Self {
+    fn sigmoid(self) -> Tensor<T, R> {
         call_ml_function("sigmoid", self)
+    }
+
+    fn sigmoid_derivative(self) -> Tensor<T, R> {
+        call_ml_function("sigmoid_derivative", self)
     }
 }
 

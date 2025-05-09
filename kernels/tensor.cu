@@ -23,26 +23,52 @@ extern "C" __global__ void add_float(float* m1, float* m2, float* output, int n)
 	}
 }
 
-extern "C" __global__ void relu_float(float* m1, int n) {
+extern "C" __global__ void sub_float(float* m1, float* m2, float* output, int n) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if(idx < n) {
-		m1[idx] = (m1[idx] + fabsf(m1[idx])) / 2;
+		output[idx] = m1[idx] - m2[idx];
 	}
 }
 
-extern "C" __global__ void tanh_float(float* m1, int n) {
+extern "C" __global__ void cmul_float(float* m1, float* m2, float* output, int n) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if(idx < n) {
-		m1[idx] = tanhf(m1[idx]);
+		output[idx] = m1[idx] * m2[idx];
 	}
 }
 
-extern "C" __global__ void sigmoid_float(float* m1, int n) {
+
+extern "C" __global__ void relu_float(float* m1, float* output, int n) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if(idx < n) {
-		m1[idx] = 1/(1 + expf(-m1[idx]));
+		output[idx] = (m1[idx] + fabsf(m1[idx])) / 2;
+	}
+}
+
+extern "C" __global__ void tanh_float(float* m1, float* output, int n) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if(idx < n) {
+		output[idx] = tanhf(m1[idx]);
+	}
+}
+
+extern "C" __global__ void sigmoid_float(float* m1, float* output, int n) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if(idx < n) {
+		output[idx] = 1/(1 + expf(-m1[idx]));
+	}
+}
+
+extern "C" __global__ void sigmoid_derivative_float(float* m1, float* output, int n) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if(idx < n) {
+		float sigmoid_x =  1/(1 + expf(-m1[idx]));
+		output[idx] = sigmoid_x * (1 - sigmoid_x);
 	}
 }

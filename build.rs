@@ -1,9 +1,11 @@
 use std::{env, fs::{self, OpenOptions}, io::Write, path::Path, process::Command};
 
-fn compile_ptx(src: &str, out: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn compile_ptx(src: &str, out: &str, original: &str) -> Result<(), Box<dyn std::error::Error>> {
     let status = Command::new("nvcc")
         .args(["-ptx", src, "-o", out, "--use_fast_math", "-arch=sm_70"])
         .status()?;
+
+    fs::write(&src, original.as_bytes()).unwrap();
     if !status.success() {
         return Err("nvcc failed".into());
     }
@@ -44,12 +46,12 @@ fn main() {
             }
         }
 
-        println!("cargo:rerun-if-changed={}", src);
+        //println!("cargo:rerun-if-changed={}", src);
 
         let mut file = OpenOptions::new().append(true).open(&src).unwrap();
         file.write(replaced.join("\n").as_bytes()).unwrap();
 
-        match compile_ptx(&src, &dst) {
+        match compile_ptx(&src, &dst, &contents) {
             Ok(_) => {
                 // Return the CUDA file to its original state.
                 fs::write(&src, contents.as_bytes()).unwrap();

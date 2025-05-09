@@ -1,6 +1,8 @@
 pub trait GpuAdd<Rhs = Self> {
     type Output;
-    fn gpu_add(&self, rhs: &Self) -> Self::Output;
+    fn gpu_add(self, rhs: Self) -> Self::Output;
+    fn gpu_cmul(self, rhs: Self) -> Self::Output;
+    fn gpu_sub(self, rhs: Self) -> Self::Output;
 }
 
 pub trait GpuMul<Rhs = Self> {
@@ -19,7 +21,9 @@ pub trait GpuTranspose<T> {
 }
 
 pub trait ML<T> {
-    fn relu(self) -> Self;
-    fn tanh(self) -> Self;
-    fn sigmoid(self) -> Self;
+    type Output;
+    fn relu(self) -> Self::Output;
+    fn tanh(self) -> Self::Output;
+    fn sigmoid(self) -> Self::Output;
+    fn sigmoid_derivative(self) -> Self::Output;
 }
