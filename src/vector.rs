@@ -1,12 +1,9 @@
 use std::ops::Mul;
-use std::sync::Arc;
-
-use cust::launch;
 use cust::memory::bytemuck::Zeroable;
 use cust::memory::{CopyDestination, DeviceBuffer, DeviceCopy};
 
-use crate::ops::*;
-use crate::{get_cuda_type, CudaCtx, Tensor, CUDA_CTX};
+use crate::{ops::*, Kernel};
+use crate::{CudaCtx, Tensor, CUDA_CTX};
 
 pub type Vector<T> = Tensor<T, 1>;
 
@@ -16,12 +13,8 @@ impl<T: DeviceCopy + Zeroable + 'static> GpuMul for &Vector<T> {
     fn gpu_mul(self, rhs: Self) -> T {
         let ctx = CUDA_CTX.lock().unwrap();
 
-        let a_dev = self._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(self.inner().as_ref().unwrap()).unwrap()));
-        let b_dev = rhs._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(rhs.inner().as_ref().unwrap()).unwrap()));
-
-        let len = self.shape()[0];
-        let bs = 256;
-        let gs = (self.shape()[0] as u32 + bs - 1) / bs;
+        let a_dev = self.ptr();
+        let b_dev = rhs.ptr();
 
         let output: DeviceBuffer<T> = DeviceBuffer::zeroed(1).unwrap();
 
@@ -31,17 +24,16 @@ impl<T: DeviceCopy + Zeroable + 'static> GpuMul for &Vector<T> {
             ..
         } = *ctx;
 
-        let t = get_cuda_type::<T>();
-        let f = vector.get_function(format!("mul_{}", t)).unwrap();
+        let mut k: Kernel<'_, T> = Kernel::new(vector, "mul");
+        k.tune_1d(self.shape()[0]);
 
         unsafe {
-            launch!(f<<<gs, bs, 0, stream>>>(
-                a_dev.as_device_ptr(),
+            k.launch(&stream,
+                (a_dev.as_device_ptr(),
                 b_dev.as_device_ptr(),
                 output.as_device_ptr(),
-                len,
-            ))
-            .unwrap()
+                self.shape()[0])
+            )
         }
 
         let mut host = vec![T::zeroed(); 1];

@@ -1,10 +1,7 @@
 use std::{ops::Mul, sync::Arc};
 
-use crate::{calc_grid_size, get_cuda_type, ops::GpuMul, CudaCtx, Tensor, CUDA_CTX};
-use cust::{
-    launch,
-    memory::{bytemuck::Zeroable, *},
-};
+use crate::{ops::GpuMul, CudaCtx, Kernel, Tensor, CUDA_CTX};
+use cust::memory::{bytemuck::Zeroable, *};
 
 pub type Matrix<T> = Tensor<T, 2>;
 
@@ -38,8 +35,8 @@ where
     fn gpu_mul(self, rhs: Self) -> Self::Output {
         let ctx = CUDA_CTX.lock().unwrap();
 
-        let a_dev = self._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(self.inner().as_ref().unwrap()).unwrap()));
-        let b_dev = rhs._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(rhs.inner().as_ref().unwrap()).unwrap()));
+        let a_dev = self.ptr();
+        let b_dev = rhs.ptr();
 
         let CudaCtx {
             ref matrix,
@@ -50,22 +47,21 @@ where
         let output: DeviceBuffer<T> =
             DeviceBuffer::zeroed(self.shape()[0] * rhs.shape()[1]).unwrap();
 
+        let mut k = Kernel::new(&matrix, "mul");
+
         let dims_self = Dimensions::from_shape(&self);
         let dims_rhs = Dimensions::from_shape(&rhs);
-        let (bs, gs) = calc_grid_size(&self, &rhs);
-
-        let t = get_cuda_type::<T>();
-        let f = matrix.get_function(format!("mul_{}", t)).unwrap();
+        k.tune_2d(&self, &rhs);
 
         unsafe {
-            launch!(f<<<gs, bs, 0, stream>>>(
-                a_dev.as_device_ptr(),
-                b_dev.as_device_ptr(),
-                output.as_device_ptr(),
-                dims_self,
-                dims_rhs
-            ))
-            .unwrap()
+            k.launch(&stream, (
+                    a_dev.as_device_ptr(),
+                    b_dev.as_device_ptr(),
+                    output.as_device_ptr(),
+                    dims_self,
+                    dims_rhs
+                    )
+            );
         }
         return Tensor {
             _device_ptr: Some(Arc::new(output)),
@@ -82,7 +78,7 @@ where
     pub fn transpose(&self) -> Self {
         let ctx = CUDA_CTX.lock().unwrap();
 
-        let a_dev = self._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(self.inner().as_ref().unwrap()).unwrap()));
+        let a_dev = self.ptr();
 
         let CudaCtx {
             ref matrix,
@@ -90,25 +86,20 @@ where
             ..
         } = *ctx;
 
+        let mut k: Kernel<'_, T> = Kernel::new(matrix, "transpose");
+
         let output: DeviceBuffer<T> =
             DeviceBuffer::zeroed(self.shape()[0] * self.shape()[1]).unwrap();
 
         let dims = Dimensions::from_shape(&self);
-
-        let bs = 256;
-        let gs = (self.shape()[0] as u32 + bs - 1) / bs;
-
-
-        let t = get_cuda_type::<T>();
-        let f = matrix.get_function(format!("transpose_{}", t)).unwrap();
+        k.tune_1d(self.shape()[0]);
 
         unsafe {
-            launch!(f<<<gs, bs, 0, stream>>>(
-                a_dev.as_device_ptr(),
+            k.launch(&stream,
+                (a_dev.as_device_ptr(),
                 output.as_device_ptr(),
-                dims,
-            ))
-            .unwrap()
+                dims)
+            )
         }
 
         return Tensor {

@@ -2,11 +2,9 @@
 #![feature(generic_const_exprs, core_intrinsics)]
 
 use cust::context::Context;
-use cust::memory::DeviceCopy;
 use cust::module::Module;
 use cust::stream::*;
 use lazy_static::lazy_static;
-use std::any::TypeId;
 use std::ffi::CString;
 use std::sync::Mutex;
 use std::env;
@@ -19,7 +17,9 @@ pub mod matrix;
 pub mod ops;
 mod tensor;
 pub mod vector;
+pub mod kernel;
 
+pub(crate) use kernel::Kernel;
 pub use matrix::Matrix;
 pub use tensor::{Tensor, TensorView};
 pub use vector::Vector;
@@ -33,24 +33,8 @@ pub struct CudaCtx {
 }
 
 
-type Dimension = (u32, u32, u32);
-
 lazy_static! {
     pub static ref CUDA_CTX: Mutex<CudaCtx> = Mutex::new(CudaCtx::default());
-}
-
-pub(crate) fn get_cuda_type<T: DeviceCopy + 'static>() -> &'static str {
-    let t = TypeId::of::<T>();
-
-    if t == TypeId::of::<f32>() {
-        return "float";
-    }
-
-    if t == TypeId::of::<f64>() {
-        return "double";
-    }
-
-    panic!("Calling CUDA operations with unsupported types. Supported types: f32, f64");
 }
 
 impl Default for CudaCtx {
@@ -73,22 +57,6 @@ impl Default for CudaCtx {
     }
 }
 
-pub(crate) fn calc_grid_size<T>(t1: &Tensor<T, 2>, t2: &Tensor<T, 2>) -> (Dimension, Dimension)
-where
-    T: DeviceCopy,
-{
-    let bs = (16, 16, 1);
-
-    let s1 = t1.shape();
-    let s2 = t2.shape();
-    let gs = (
-        (s2[1] as usize + bs.0 as usize - 1) as u32 / bs.0,
-        (s1[0] as usize + bs.1 as usize - 1) as u32 / bs.1,
-        1,
-    );
-    (bs, gs)
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{ops::ML, Vector};
@@ -98,12 +66,12 @@ mod tests {
     use rand::Rng;
     use rand::SeedableRng;
 
-    fn generate_data() -> Vec<f64> {
+    fn generate_data() -> Vec<f32> {
         let size: usize = 10_000_000;
         let mut rng = StdRng::from_os_rng();
         let uniform = Uniform::new(-1.0f32, 1.0).unwrap();
 
-        (0..size).map(|_| rng.sample(&uniform) as f64).collect()
+        (0..size).map(|_| rng.sample(&uniform)).collect()
     }
 
     #[test]
@@ -126,8 +94,8 @@ mod tests {
         // Bigger vectors
         // The library also has support for multiple number types (currently just f64 and f32)
         // It will compile a CUDA kernel for each type the user is using.
-        let v5: Vector<f64> = Vector::from(generate_data());
-        let v6: Vector<f64> = Vector::from(generate_data());
+        let v5: Vector<f32> = Vector::from(generate_data());
+        let v6: Vector<f32> = Vector::from(generate_data());
         let v7 = v5 * v6;
 
         println!("{:#?}", v7);
