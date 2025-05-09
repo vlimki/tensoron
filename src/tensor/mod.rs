@@ -82,6 +82,7 @@ impl<T: DeviceCopy, const R: usize> Tensor<T, R> {
         &self._device_ptr
     }
 
+
     pub fn inner(&self) -> &Option<Vec<T>> {
         &self._inner
     }
@@ -262,15 +263,19 @@ impl<T: DeviceCopy + Zeroable + 'static, const R: usize> Sub for Tensor<T, R> {
 }
 
 
-impl<T: DeviceCopy + Zeroable + 'static, const R: usize> GpuScale<T> for Tensor<T, R> {
-    type Output = Self;
+impl<T: DeviceCopy + Zeroable + 'static, const R: usize> GpuScale<T> for &Tensor<T, R> {
+    type Output = Tensor<T, R>;
 
-    fn gpu_scale(mut self, rhs: T) -> Self {
+    fn gpu_scale(self, rhs: T) -> Self::Output {
         let ctx = CUDA_CTX.lock().unwrap();
 
         let mut scalar_tensor = tensor!([1, 1][rhs]);
 
-        self.gpu();
+        let output: DeviceBuffer<T> =
+            DeviceBuffer::zeroed(self.shape().iter().product()).unwrap();
+
+        let a_dev = self._device_ptr.as_ref().cloned().unwrap_or_else(|| Arc::new(DeviceBuffer::from_slice(self.inner().as_ref().unwrap()).unwrap()));
+
         scalar_tensor.gpu();
 
         // Make a proper grid calc function eventually
@@ -289,14 +294,19 @@ impl<T: DeviceCopy + Zeroable + 'static, const R: usize> GpuScale<T> for Tensor<
 
         unsafe {
             launch!(f<<<gs, bs, 0, stream>>>(
-                self.device_ptr().as_ref().unwrap().as_device_ptr(),
+                a_dev.as_device_ptr(),
                 scalar_tensor.device_ptr().as_ref().unwrap().as_device_ptr(),
+                output.as_device_ptr(),
                 len as i32,
             ))
             .unwrap()
         }
 
-        self
+        return Tensor {
+            _device_ptr: Some(Arc::new(output)),
+            _inner: None,
+            _shape: self.shape()
+        }
     }
 }
 
@@ -356,6 +366,9 @@ impl<T: DeviceCopy + Zeroable + 'static, const R: usize> ML<T> for &Tensor<T, R>
     fn sigmoid_derivative(self) -> Tensor<T, R> {
         call_ml_function("sigmoid_derivative", self)
     }
+    fn relu_derivative(self) -> Self::Output {
+        call_ml_function("sigmoid_derivative", self)
+    }
 }
 
 impl<T, const R: usize> Tensor<T, R>
@@ -371,7 +384,15 @@ where
         }
     }
 
-    pub fn scale(self, rhs: T) -> Self {
+    pub fn zeros(shape: [usize; R]) -> Self {
+        Self {
+            _device_ptr: None,
+            _shape: shape,
+            _inner: Some(vec![T::zeroed(); shape.iter().product()]),
+        }
+    }
+
+    pub fn scale(&self, rhs: T) -> Self {
         self.gpu_scale(rhs)
     }
 
@@ -399,6 +420,7 @@ where
         }
     }
 }
+
 
 impl<T, const R: usize> PartialEq for Tensor<T, R>
 where

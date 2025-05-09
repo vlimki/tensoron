@@ -23,6 +23,7 @@ pub trait GpuTranspose<T> {
 pub trait ML<T> {
     type Output;
     fn relu(self) -> Self::Output;
+    fn relu_derivative(self) -> Self::Output;
     fn tanh(self) -> Self::Output;
     fn sigmoid(self) -> Self::Output;
     fn sigmoid_derivative(self) -> Self::Output;

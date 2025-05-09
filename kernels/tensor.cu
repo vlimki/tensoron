@@ -7,11 +7,11 @@
  */
 
 // KERNELS
-extern "C" __global__ void scale_float(float* a, float* b, int n) {
+extern "C" __global__ void scale_float(float* a, float* b, float* output, int n) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < n) {
-        a[idx] = a[idx] * b[0];
+        output[idx] = a[idx] * b[0];
     }
 }
 
@@ -70,5 +70,13 @@ extern "C" __global__ void sigmoid_derivative_float(float* m1, float* output, in
 	if(idx < n) {
 		float sigmoid_x =  1/(1 + expf(-m1[idx]));
 		output[idx] = sigmoid_x * (1 - sigmoid_x);
+	}
+}
+
+extern "C" __global__ void relu_derivative_float(float* m1, float* output, int n) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if(idx < n) {
+		output[idx] = m1[idx] < 0 ? 0 : 1;
 	}
 }
