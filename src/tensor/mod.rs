@@ -54,9 +54,6 @@ impl<T, const R: usize> Clone for Tensor<T, R>
 where
     T: DeviceCopy + Clone,
 {
-    /// Safe because it discards the device pointer.
-    /// Will be removing once when making GPU-local. OR will alternatively allocate it on a new
-    /// pointer.
     fn clone(&self) -> Self {
         Self {
             _device_ptr: self._device_ptr.clone(),
